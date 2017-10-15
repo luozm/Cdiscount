@@ -1,0 +1,14 @@
+# Temp files
+/**/*.pyc
+
+# utils files
+/**/*.csv
+/**/*.bson
+/**/*.pkl
+/**/*.gz
+/**/*.lzm-Z270P-D3
+
+# model files
+/**/*.caffemodel
+/**/*.h5
+

@@ -1,0 +1,224 @@
+"""
+Preprocess the dataset
+
+"""
+import os
+import struct
+from collections import defaultdict
+from tqdm import *
+
+import numpy as np
+import pandas as pd
+import bson
+
+import utils.utils as u
+
+
+# ## Read the BSON files
+# 
+# We store the offsets and lengths of all items, allowing us random access to the items later.
+# 
+# Inspired by code from: https://www.kaggle.com/vfdev5/random-item-access
+# 
+# Note: this takes a few minutes to execute,
+# but we only have to do it once (we'll save the table to a CSV file afterwards).
+def read_bson(bson_path, num_records, with_categories):
+    rows = {}
+    with open(bson_path, "rb") as f, tqdm(total=num_records) as pbar:
+        offset = 0
+        while True:
+            item_length_bytes = f.read(4)
+            if len(item_length_bytes) == 0:
+                break
+
+            length = struct.unpack("<i", item_length_bytes)[0]
+
+            f.seek(offset)
+            item_data = f.read(length)
+            assert len(item_data) == length
+
+            item = bson.BSON.decode(item_data)
+            product_id = item["_id"]
+            num_imgs = len(item["imgs"])
+
+            row = [num_imgs, offset, length]
+            if with_categories:
+                row += [item["category_id"]]
+            rows[product_id] = row
+
+            offset += length
+            f.seek(offset)
+            pbar.update()
+
+    columns = ["num_imgs", "offset", "length"]
+    if with_categories:
+        columns += ["category_id"]
+
+    df = pd.DataFrame.from_dict(rows, orient="index")
+    df.index.name = "product_id"
+    df.columns = columns
+    df.sort_index(inplace=True)
+    return df
+
+
+# ## Create a random train/validation split
+# 
+# We split on products, not on individual images.
+# Since some of the categories only have a few products, we do the split separately for each category.
+# 
+# This creates two new tables, one for the training images and one for the validation images.
+# There is a row for every single image, so if a product has more than one image it occurs more than once in the table.
+def make_val_set(df, split_percentage=0.2, drop_percentage=0.):
+    # Find the product_ids for each category.
+    category_dict = defaultdict(list)
+    for ir in tqdm(df.itertuples()):
+        category_dict[ir[4]].append(ir[0])
+
+    train_list = []
+    val_list = []
+    with tqdm(total=int(len(df)*(1-drop_percentage))) as pbar:
+        for category_id, product_ids in category_dict.items():
+            category_idx = cat2idx[category_id]
+
+            # Randomly remove products to make the dataset smaller.
+            keep_size = int(len(product_ids) * (1. - drop_percentage))
+            if keep_size < len(product_ids):
+                product_ids = np.random.choice(product_ids, keep_size, replace=False)
+
+            # Randomly choose the products that become part of the validation set.
+            val_size = int(len(product_ids) * split_percentage)
+            if val_size > 0:
+                val_ids = np.random.choice(product_ids, val_size, replace=False)
+            else:
+                val_ids = []
+
+            # Create a new row for each image.
+            for product_id in product_ids:
+                row = [product_id, category_idx]
+                for img_idx in range(df.loc[product_id, "num_imgs"]):
+                    if product_id in val_ids:
+                        val_list.append(row + [img_idx])
+                    else:
+                        train_list.append(row + [img_idx])
+                pbar.update()
+                
+    columns = ["product_id", "category_idx", "img_idx"]
+    train_df = pd.DataFrame(train_list, columns=columns)
+    val_df = pd.DataFrame(val_list, columns=columns)   
+    return train_df, val_df       
+
+
+def make_test_set(df):
+    test_list = []
+    for ir in tqdm(df.itertuples()):
+        product_id = ir[0]
+        num_imgs = ir[1]
+        for img_idx in range(num_imgs):
+            test_list.append([product_id, img_idx])
+
+    columns = ["product_id", "img_idx"]
+    test_df = pd.DataFrame(test_list, columns=columns)
+    return test_df
+
+
+# Input data files are available in the "../input/" directory.
+#from subprocess import check_output
+#print(check_output(["ls", "../input"]).decode("utf8"))
+
+
+train_bson_path = os.path.join(u.data_dir, "train.bson")
+test_bson_path = os.path.join(u.data_dir, "test.bson")
+
+
+# # Part 1: Create lookup tables
+# 
+# The generator uses several lookup tables that describe the layout of the BSON file,
+# which products and images are part of the training/validation sets, and so on.
+# 
+# You only need to generate these tables once, as they get saved to CSV files.
+
+# ## Lookup table for categories
+categories_path = os.path.join(u.data_dir, "category_names.csv")
+categories_df = pd.read_csv(categories_path, index_col="category_id")
+
+
+# Maps the category_id to an integer index. This is what we'll use to
+# one-hot encode the labels.
+categories_df["category_idx"] = pd.Series(range(len(categories_df)), index=categories_df.index)
+
+categories_df.to_csv(u.utils_dir+"categories.csv")
+
+
+# Create dictionaries for quick lookup of `category_id` to `category_idx` mapping.
+cat2idx, idx2cat = u.make_category_tables(categories_df)
+
+
+# ## Read the BSON files
+# 
+# We store the offsets and lengths of all items, allowing us random access to the items later.
+print("Scanning train file:")
+train_offsets_df = read_bson(
+    train_bson_path,
+    num_records=u.num_train_products,
+    with_categories=True)
+
+train_offsets_df.to_csv(u.utils_dir+"train_offsets.csv")
+print("Successfully save train_offsets.csv")
+
+# How many images in total?
+print("Number of total training images:", train_offsets_df["num_imgs"].sum())
+
+
+# Also create a table for the offsets from the test set.
+print("Scanning test file:")
+test_offsets_df = read_bson(
+    test_bson_path,
+    num_records=u.num_test_products,
+    with_categories=False)
+
+test_offsets_df.to_csv(u.utils_dir+"test_offsets.csv")
+print("Successfully save test_offsets.csv")
+
+
+# ## Create a random train/validation split
+# 
+# We split on products, not on individual images.
+# Since some of the categories only have a few products, we do the split separately for each category.
+# 
+# This creates two new tables, one for the training images and one for the validation images.
+# There is a row for every single image, so if a product has more than one image it occurs more than once in the table.
+
+# Create a 80/20 split. Also can drop some of all products to make the dataset more manageable.
+print("Spliting train/val set:")
+train_images_df, val_images_df = make_val_set(
+    train_offsets_df,
+    split_percentage=0.1,
+    drop_percentage=0)
+
+print("Number of training images:", len(train_images_df))
+print("Number of validation images:", len(val_images_df))
+print("Total images:", len(train_images_df) + len(val_images_df))
+
+
+# Are all categories represented in the train/val split?
+# (Note: if the drop percentage is high,
+# then very small categories won't have enough products left to make it into the validation set.)
+#len(train_images_df["category_idx"].unique()), len(val_images_df["category_idx"].unique())
+
+
+# Save the lookup tables as CSV so that we don't need to repeat the above procedure again.
+train_images_df.to_csv(u.utils_dir+"train_images.csv")
+val_images_df.to_csv(u.utils_dir+"val_images.csv")
+print("Successfully save train_images.csv and val_images.csv")
+
+# ## Lookup table for test set images
+# 
+# Create a list containing a row for each image.
+# If a product has more than one image, it appears more than once in this list.
+print("Making test set:")
+test_images_df = make_test_set(test_offsets_df)
+
+print("Number of test images:", len(test_images_df))
+
+test_images_df.to_csv(u.utils_dir+"test_images.csv")
+print("Successfully save test_images.csv")
