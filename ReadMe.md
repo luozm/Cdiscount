@@ -11,9 +11,13 @@ This document is for kaggle  Cdiscount competition. All codes are written by Pyt
 5. Make prediction and submission using `prediction.py` or `prediction_with_snapshot.py`
 
 ## Team Members
-LZM
-MTJ
 ZJY
+
+LRQ
+
+LZM
+
+MTJ
 
 ## Citations
 All codes from internet are listed in source_code folder
