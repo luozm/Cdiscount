@@ -39,7 +39,9 @@ submission_df = pd.read_csv(data_dir + "sample_submission.csv")
 # Use BSONIterator to load the test set images in batches.
 test_bson_file = open(test_bson_path, "rb")
 
-test_datagen = ImageDataGenerator(rescale=1./255)
+test_datagen = ImageDataGenerator(
+#    rescale=1./255
+)
 test_data = bson.decode_file_iter(test_bson_file)
 
 

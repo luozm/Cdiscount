@@ -31,7 +31,7 @@ from keras.applications.resnet50 import ResNet50
 from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau, LearningRateScheduler
 
 # custom callbacks, not the original keras one
-from callbacks import TensorBoard, SnapshotModelCheckpoint
+from utils.callbacks import TensorBoard, SnapshotModelCheckpoint
 import utils.utils as u
 
 
@@ -364,7 +364,7 @@ history = model.fit_generator(
     validation_steps=(num_val_images // batch_size)+1,
     workers=8,
     callbacks=callback_list,
-    initial_epoch=2
+#    initial_epoch=2
     )
 
 sys_mon.stop()
