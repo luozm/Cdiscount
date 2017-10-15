@@ -1,6 +1,4 @@
 # Codes for Cdiscount kaggle competition of NullPointerException team
-
-##　Overview
 This document is for kaggle  Cdiscount competition. All codes are written by Python3.5.
 
 ## Instruction
