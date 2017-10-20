@@ -11,6 +11,8 @@ result_dir = "../data/results/"
 num_train_products = 7069896
 num_test_products = 1768182
 num_classes = 5270
+num_classes1 = 49
+num_classes2 = 483
 
 
 # Create dictionaries for quick lookup of `category_id` to `category_idx` mapping.

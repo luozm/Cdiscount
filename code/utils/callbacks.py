@@ -655,3 +655,26 @@ class SnapshotCallbackBuilder:
         cos_inner /= self.T // self.M
         cos_out = np.cos(cos_inner) + 1
         return float(self.alpha_zero / 2 * cos_out)
+
+
+class LossWeightsModifier(Callback):
+    def __init__(self, lw1, lw2, lw3):
+        super(LossWeightsModifier, self).__init__()
+        self.lw1 = lw1
+        self.lw2 = lw2
+        self.lw3 = lw3
+
+    # customize your behavior
+    def on_epoch_end(self, epoch, logs={}):
+        if epoch == 2:
+            K.set_value(self.lw1, 0.1)
+            K.set_value(self.lw2, 0.8)
+            K.set_value(self.lw3, 0.1)
+        if epoch == 4:
+            K.set_value(self.lw1, 0.1)
+            K.set_value(self.lw2, 0.2)
+            K.set_value(self.lw3, 0.7)
+        if epoch == 6:
+            K.set_value(self.lw1, 0)
+            K.set_value(self.lw2, 0)
+            K.set_value(self.lw3, 1)
