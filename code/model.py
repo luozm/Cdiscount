@@ -14,12 +14,12 @@ from keras.layers.pooling import MaxPooling2D, GlobalAveragePooling2D
 from keras.optimizers import Adam, SGD, Adamax
 from keras.applications.xception import Xception
 from keras.applications.resnet50 import ResNet50
-import utils.utils as u
+import utils.utils as utils
 
 
-num_classes = u.num_classes
-num_classes1 = u.num_classes1
-num_classes2 = u.num_classes2
+num_classes = utils.num_classes
+num_classes1 = utils.num_classes1
+num_classes2 = utils.num_classes2
 
 
 # define loss function DARC1, employed by paper: "Generalization in Deep Learning"
@@ -33,7 +33,7 @@ def DARC1(y_true, y_pred):
 
 
 def branch(input, num_filters, name, actvation='selu', ):
-#    input = MaxPooling2D((3, 3), strides=(2, 2), name=name+'_max_pool')(input)
+    # input = MaxPooling2D((3, 3), strides=(2, 2), name=name+'_max_pool')(input)
     b = SeparableConv2D(num_filters, (3, 3), padding='same', use_bias=False, name=name+'_sepconv1')(input)
     b = BatchNormalization(name=name+'_sepconv1_bn')(b)
     b = Activation(actvation, name=name+'_sepconv1_act')(b)

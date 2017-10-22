@@ -7,19 +7,19 @@ from tqdm import *
 import bson
 import pandas as pd
 
-import utils.utils as u
+import utils.utils as utils
 
 
 # Input data files are available in the "../input/" directory.
-data_dir = u.data_dir
-utils_dir = u.utils_dir
+data_dir = utils.data_dir
+utils_dir = utils.utils_dir
 train_bson_path = os.path.join(data_dir, "train.bson")
 
 # First load the lookup tables from the CSV files.
 train_offsets_df = pd.read_csv(utils_dir+"train_offsets.csv", index_col=0)
 val_images_df = pd.read_csv(utils_dir+"val_images.csv", index_col=0)
 
-num_classes = u.num_classes
+num_classes = utils.num_classes
 num_val_images = len(val_images_df)
 train_bson_file = open(train_bson_path, "rb")
 val_full_dataset = []

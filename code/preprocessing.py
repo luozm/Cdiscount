@@ -1,6 +1,5 @@
 """
-Preprocess the dataset
-
+Pre process the data set
 """
 import os
 import struct
@@ -11,7 +10,7 @@ import numpy as np
 import pandas as pd
 import bson
 
-import utils.utils as u
+import utils.utils as utils
 
 
 # ## Read the BSON files
@@ -27,41 +26,51 @@ def read_bson(bson_path, num_records, with_categories):
     with open(bson_path, "rb") as f, tqdm(total=num_records) as pbar:
         offset = 0
         while True:
+            # The length of the item is stored as 4 bytes in file header
             item_length_bytes = f.read(4)
+
+            # Check if file reaches the EOF
             if len(item_length_bytes) == 0:
                 break
 
+            # Read item data by offset and length
             length = struct.unpack("<i", item_length_bytes)[0]
-
             f.seek(offset)
             item_data = f.read(length)
             assert len(item_data) == length
 
+            # Decode bson data to get id and raw image
             item = bson.BSON.decode(item_data)
             product_id = item["_id"]
             num_imgs = len(item["imgs"])
 
+            # Save the retrieved information as a row
             row = [num_imgs, offset, length]
             if with_categories:
                 row += [item["category_id"]]
+
+            # Add the row in rows
             rows[product_id] = row
 
+            # Update offset and prepare for next retrieval
             offset += length
             f.seek(offset)
             pbar.update()
 
+    # Set the table header
     columns = ["num_imgs", "offset", "length"]
     if with_categories:
         columns += ["category_id"]
 
-    df = pd.DataFrame.from_dict(rows, orient="index")
-    df.index.name = "product_id"
-    df.columns = columns
-    df.sort_index(inplace=True)
-    return df
+    # Construct the product table and return it
+    product_table = pd.DataFrame.from_dict(rows, orient="index")
+    product_table.index.name = "product_id"
+    product_table.columns = columns
+    product_table.sort_index(inplace=True)
+    return product_table
 
 
-# ## Create a random train/validation split
+# Create a random train/validation split
 # 
 # We split on products, not on individual images.
 # Since some of the categories only have a few products, we do the split separately for each category.
@@ -126,8 +135,8 @@ def make_test_set(df):
 #print(check_output(["ls", "../input"]).decode("utf8"))
 
 
-train_bson_path = os.path.join(u.data_dir, "train.bson")
-test_bson_path = os.path.join(u.data_dir, "test.bson")
+train_bson_path = os.path.join(utils.data_dir, "train.bson")
+test_bson_path = os.path.join(utils.data_dir, "test.bson")
 
 
 # # Part 1: Create lookup tables
@@ -138,7 +147,7 @@ test_bson_path = os.path.join(u.data_dir, "test.bson")
 # You only need to generate these tables once, as they get saved to CSV files.
 
 # ## Lookup table for categories
-categories_path = os.path.join(u.data_dir, "category_names.csv")
+categories_path = os.path.join(utils.data_dir, "category_names.csv")
 categories_df = pd.read_csv(categories_path, index_col="category_id")
 
 
@@ -146,11 +155,11 @@ categories_df = pd.read_csv(categories_path, index_col="category_id")
 # one-hot encode the labels.
 categories_df["category_idx"] = pd.Series(range(len(categories_df)), index=categories_df.index)
 
-categories_df.to_csv(u.utils_dir+"categories.csv")
+categories_df.to_csv(utils.utils_dir + "categories.csv")
 
 
 # Create dictionaries for quick lookup of `category_id` to `category_idx` mapping.
-cat2idx, idx2cat = u.make_category_tables(categories_df)
+cat2idx, idx2cat = utils.make_category_tables(categories_df)
 
 
 # ## Read the BSON files
@@ -159,10 +168,10 @@ cat2idx, idx2cat = u.make_category_tables(categories_df)
 print("Scanning train file:")
 train_offsets_df = read_bson(
     train_bson_path,
-    num_records=u.num_train_products,
+    num_records=utils.num_train_products,
     with_categories=True)
 
-train_offsets_df.to_csv(u.utils_dir+"train_offsets.csv")
+train_offsets_df.to_csv(utils.utils_dir + "train_offsets.csv")
 print("Successfully save train_offsets.csv")
 
 # How many images in total?
@@ -173,10 +182,10 @@ print("Number of total training images:", train_offsets_df["num_imgs"].sum())
 print("Scanning test file:")
 test_offsets_df = read_bson(
     test_bson_path,
-    num_records=u.num_test_products,
+    num_records=utils.num_test_products,
     with_categories=False)
 
-test_offsets_df.to_csv(u.utils_dir+"test_offsets.csv")
+test_offsets_df.to_csv(utils.utils_dir + "test_offsets.csv")
 print("Successfully save test_offsets.csv")
 
 
@@ -207,8 +216,8 @@ print("Total images:", len(train_images_df) + len(val_images_df))
 
 
 # Save the lookup tables as CSV so that we don't need to repeat the above procedure again.
-train_images_df.to_csv(u.utils_dir+"train_images.csv")
-val_images_df.to_csv(u.utils_dir+"val_images.csv")
+train_images_df.to_csv(utils.utils_dir + "train_images.csv")
+val_images_df.to_csv(utils.utils_dir + "val_images.csv")
 print("Successfully save train_images.csv and val_images.csv")
 
 # ## Lookup table for test set images
@@ -220,5 +229,5 @@ test_images_df = make_test_set(test_offsets_df)
 
 print("Number of test images:", len(test_images_df))
 
-test_images_df.to_csv(u.utils_dir+"test_images.csv")
+test_images_df.to_csv(utils.utils_dir + "test_images.csv")
 print("Successfully save test_images.csv")
