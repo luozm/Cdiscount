@@ -74,7 +74,7 @@ class BSONIterator(Iterator):
         # Print out information
         print("Found %d images belonging to %d classes." % (self.__num_images, self.__num_label))
 
-    def _get_next_batch(self, index_array):
+    def _get_batches_of_transformed_samples(self, index_array):
         """
         :param index_array:
         :return: The batch of samples(pair of image and label)
@@ -118,7 +118,7 @@ class BSONIterator(Iterator):
     def next(self):
         with self.__lock:
             index_array = next(self.index_generator)
-        return self._get_next_batch(index_array)
+        return self._get_batches_of_transformed_samples(index_array)
 
 
 class PickleGenerator(Iterator):
@@ -150,9 +150,9 @@ class PickleGenerator(Iterator):
 
     def next(self):
         index_array = next(self.index_generator)
-        return self._get_next_batch(index_array)
+        return self._get_batches_of_transformed_samples(index_array)
 
-    def _get_next_batch(self, index_array):
+    def _get_batches_of_transformed_samples(self, index_array):
         """
         :param index_array:
         :return: Batch of samples(pair of image and label)
@@ -287,7 +287,7 @@ train_gen = BSONIterator(train_bson_file,
                          )
 
 val_datagen = ImageDataGenerator()
-val_gen = PickleGenerator(pickle_file, val_datagen, batch_size=batch_size)
+val_gen = PickleGenerator(num_classes, pickle_file, val_datagen, batch_size=batch_size)
 
 """
 # show images after augmentation
@@ -383,7 +383,9 @@ callback_list = [
         save_best_only=True,
         save_weights_only=False),
     LearningRateScheduler(schedule=_cosine_anneal_schedule),
-    snapshot, tensorboard]
+    snapshot,
+#    tensorboard
+]
 
 # Monitoring the status of GPU & CPU
 sys_mon = SM.SysMonitor()
