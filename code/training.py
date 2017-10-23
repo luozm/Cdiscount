@@ -43,7 +43,7 @@ from model import *
 # See also the code in: https://github.com/fchollet/keras/blob/master/keras/preprocessing/image.py
 class BSONIterator(Iterator):
     def __init__(self, bson_file, image_table, product_table, num_label,
-                 image_data_generator, lock, num_label_level1=None, num_label_level2=None,
+                 image_data_generator, lock=None, num_label_level1=None, num_label_level2=None,
                  image_size=(180, 180), labelled=True, batch_size=32,
                  shuffle=False, seed=None, use_hierarchical_label=False):
         """
@@ -74,7 +74,7 @@ class BSONIterator(Iterator):
         self.__image_data_generator = image_data_generator
         self.__image_size = tuple(image_size)
         self.__image_shape = self.__image_size + (3,)
-        self.__lock = lock
+#        self.__lock = lock
         self.__use_hierarchical_label = use_hierarchical_label
         # Pass parameter back to super class
         super(BSONIterator, self).__init__(self.__num_images, batch_size, shuffle, seed)
@@ -96,7 +96,7 @@ class BSONIterator(Iterator):
 
         for i, j in enumerate(index_array):
             # Protect file and data frame access with a lock.
-            with self.__lock:
+            with self.lock:
                 image_row = self.__image_table.iloc[j]
                 product_id = image_row["product_id"]
                 offset_row = self.__product_table.loc[product_id]
@@ -133,7 +133,7 @@ class BSONIterator(Iterator):
             return batch_x
 
     def next(self):
-        with self.__lock:
+        with self.lock:
             index_array = next(self.index_generator)
         return self._get_batches_of_transformed_samples(index_array)
 
@@ -294,7 +294,7 @@ batch_size = 128
 num_epoch = 6
 initial_learning_rate = 0.001
 num_final_dense_layer = 128
-num_snapshots = 3
+num_snapshots = 1
 model_prefix = 'Xception-branch-pretrained-%d' % num_final_dense_layer
 
 
@@ -302,12 +302,12 @@ model_prefix = 'Xception-branch-pretrained-%d' % num_final_dense_layer
 
 # Tip: use ImageDataGenerator for data augmentation and preprocessing.
 train_datagen = ImageDataGenerator(
-    # rescale=1./255,
-    # horizontal_flip=True,
-    # zoom_range=0.2,
-    # rotation_range=20,
-    # width_shift_range=0.2,
-    # height_shift_range=0.2,
+     rescale=1./255,
+     horizontal_flip=True,
+     zoom_range=0.2,
+     rotation_range=20,
+     width_shift_range=0.2,
+     height_shift_range=0.2,
       )
 train_gen = BSONIterator(train_bson_file,
                          train_image_table,
@@ -322,7 +322,9 @@ train_gen = BSONIterator(train_bson_file,
                          use_hierarchical_label=True
                          )
 
-val_datagen = ImageDataGenerator()
+val_datagen = ImageDataGenerator(
+    rescale=1./255
+)
 val_gen = PickleGenerator(num_classes,
                           pickle_file,
                           val_datagen,
@@ -360,7 +362,8 @@ lw2 = K.variable(value=0.01, dtype="float32", name="loss_weight2")  # A2 in pape
 lw3 = K.variable(value=0.01, dtype="float32", name="loss_weight3")  # A3 in paper
 
 model.compile(optimizer=adam,
-              loss="categorical_crossentropy",
+#              loss="categorical_crossentropy",
+              loss=DARC1,
               loss_weights=[lw1, lw2, lw3],
               metrics=["accuracy"],
               )
@@ -380,7 +383,7 @@ model.summary()
 
 # Callbacks
 # Visualization when training
-tensorboard = TensorBoard(log_dir=log_dir+"/add_fc/%d" % num_final_dense_layer,
+tensorboard = TensorBoard(log_dir=log_dir+"/branch/add_fc/%d" % num_final_dense_layer,
                           histogram_freq=0,
                           batch_size=batch_size,
                           write_graph=True,
@@ -394,18 +397,19 @@ tensorboard = TensorBoard(log_dir=log_dir+"/add_fc/%d" % num_final_dense_layer,
 # reduce_lr = ReduceLROnPlateau(monitor='loss', factor=0.8, patience=2)
 
 # Build snapshot callback
-snapshot = SnapshotModelCheckpoint(num_epoch, num_snapshots, fn_prefix=model_dir + "%s" % model_prefix)
+#snapshot = SnapshotModelCheckpoint(num_epoch, num_snapshots, fn_prefix=model_dir + "%s" % model_prefix)
 
 callback_list = [
     ModelCheckpoint(
         model_dir+"%s-Best.h5" % model_prefix,
-        monitor="val_acc",
+#        monitor="val_acc",
+        monitor="val_out_loss",
         save_best_only=True,
         save_weights_only=False),
     LearningRateScheduler(schedule=_cosine_anneal_schedule),
-    snapshot,
+#    snapshot,
     LossWeightsModifier(lw1, lw2, lw3),
-#    tensorboard
+    tensorboard,
 ]
 
 # Monitoring the status of GPU & CPU
@@ -430,8 +434,8 @@ title = '{0:.2f} seconds of computation, no multiprocessing, batch size = {1}'.f
 sys_mon.plot(title, True)
 plt.show()
 
-print(snapshot.lr)
-visual_result(history, snapshot.lr)
+#print(snapshot.lr)
+#visual_result(history, snapshot.lr)
 
 """
 # Profling using timeline (go to the page chrome://tracing and load the timeline.json file)

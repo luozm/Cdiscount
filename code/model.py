@@ -29,7 +29,7 @@ def DARC1(y_true, y_pred):
     xentropy = K.categorical_crossentropy(y_true, y_pred_softmax)
     reg = K.max(K.sum(K.abs(y_pred), axis=0))
     alpha = 0.001
-    return K.sum(xentropy, alpha*reg)
+    return xentropy+alpha*reg
 
 
 def branch(input, num_filters, num_output, name, actvation='selu'):
@@ -42,7 +42,7 @@ def branch(input, num_filters, num_output, name, actvation='selu'):
     b = Activation(actvation, name=name+'_sepconv2_act')(b)
     b = GlobalAveragePooling2D(name=name+'_avg_pool')(b)
     # output (no softmax for DARC1)
-    output = Dense(num_output, name=name+'_out')(b)
+    output = Dense(num_output, name=name)(b)
     return output
 
 

@@ -666,15 +666,15 @@ class LossWeightsModifier(Callback):
 
     # customize your behavior
     def on_epoch_end(self, epoch, logs={}):
-        if epoch == 2:
+        if epoch == 1:
             K.set_value(self.lw1, 0.1)
             K.set_value(self.lw2, 0.8)
             K.set_value(self.lw3, 0.1)
-        if epoch == 4:
+        if epoch == 2:
             K.set_value(self.lw1, 0.1)
             K.set_value(self.lw2, 0.2)
             K.set_value(self.lw3, 0.7)
-        if epoch == 6:
+        if epoch == 4:
             K.set_value(self.lw1, 0)
             K.set_value(self.lw2, 0)
             K.set_value(self.lw3, 1)
