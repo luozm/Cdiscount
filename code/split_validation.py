@@ -25,8 +25,8 @@ train_bson_file = open(train_bson_path, "rb")
 val_full_dataset = []
 
 with tqdm(total=num_val_images) as pbar:
-    for c, d in enumerate(val_images_df.itertuples()):
-        offset_row = train_offsets_df.loc[d[1]]
+    for image in val_images_df.itertuples():
+        offset_row = train_offsets_df.loc[image[1]]
 
         # Read this product's data from the BSON file.
         train_bson_file.seek(offset_row["offset"])
@@ -34,9 +34,12 @@ with tqdm(total=num_val_images) as pbar:
 
         # Grab the image from the product.
         item = bson.BSON.decode(item_data)
-        bson_img = item["imgs"][d[3]]["picture"]
+        bson_img = item["imgs"][image[5]]["picture"]
 
-        val_full_dataset.append({"x": bson_img, "y": d[2]})
+        val_full_dataset.append({"image": bson_img,
+                                 "label": image[2],
+                                 "label_level1": image[3],
+                                 "label_level2": image[4]})
 
         pbar.update()
 

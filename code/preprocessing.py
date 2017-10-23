@@ -77,17 +77,20 @@ def read_bson(bson_path, num_records, with_categories):
 # 
 # This creates two new tables, one for the training images and one for the validation images.
 # There is a row for every single image, so if a product has more than one image it occurs more than once in the table.
-def make_val_set(df, split_percentage=0.2, drop_percentage=0.):
+def make_val_set(product_table, category2index, category2index_level1, category2index_level2,
+                 split_percentage=0.2, drop_percentage=0.):
     # Find the product_ids for each category.
     category_dict = defaultdict(list)
-    for ir in tqdm(df.itertuples()):
+    for ir in tqdm(product_table.itertuples()):
         category_dict[ir[4]].append(ir[0])
 
     train_list = []
     val_list = []
-    with tqdm(total=int(len(df)*(1-drop_percentage))) as pbar:
+    with tqdm(total=int(len(product_table)*(1-drop_percentage))) as pbar:
         for category_id, product_ids in category_dict.items():
-            category_idx = cat2idx[category_id]
+            category_idx = category2index[category_id]
+            category_idx_level1 = category2index_level1[category_id]
+            category_idx_level2 = category2index_level2[category_id]
 
             # Randomly remove products to make the dataset smaller.
             keep_size = int(len(product_ids) * (1. - drop_percentage))
@@ -103,18 +106,18 @@ def make_val_set(df, split_percentage=0.2, drop_percentage=0.):
 
             # Create a new row for each image.
             for product_id in product_ids:
-                row = [product_id, category_idx]
-                for img_idx in range(df.loc[product_id, "num_imgs"]):
+                row = [product_id, category_idx, category_idx_level1, category_idx_level2]
+                for img_idx in range(product_table.loc[product_id, "num_imgs"]):
                     if product_id in val_ids:
                         val_list.append(row + [img_idx])
                     else:
                         train_list.append(row + [img_idx])
                 pbar.update()
                 
-    columns = ["product_id", "category_idx", "img_idx"]
+    columns = ["product_id", "category_idx", "category_idx_level1", "category_idx_level2", "img_idx"]
     train_df = pd.DataFrame(train_list, columns=columns)
     val_df = pd.DataFrame(val_list, columns=columns)   
-    return train_df, val_df       
+    return train_df, val_df
 
 
 def make_test_set(df):
@@ -151,8 +154,7 @@ categories_path = os.path.join(utils.data_dir, "category_names.csv")
 categories_df = pd.read_csv(categories_path, index_col="category_id")
 
 
-# Maps the category_id to an integer index. This is what we'll use to
-# one-hot encode the labels.
+# Maps the category_id to an integer index.
 categories_df["category_idx"] = pd.Series(range(len(categories_df)), index=categories_df.index)
 
 categories_df.to_csv(utils.utils_dir + "categories.csv")
@@ -160,6 +162,28 @@ categories_df.to_csv(utils.utils_dir + "categories.csv")
 
 # Create dictionaries for quick lookup of `category_id` to `category_idx` mapping.
 cat2idx, idx2cat = utils.make_category_tables(categories_df)
+
+
+# For level1
+
+# Maps the category_id_level1 to an integer index (category_level1_index)
+categories_level1_list = list(categories_df["category_level1"].unique())
+categories_level1_df = pd.DataFrame(categories_level1_list, columns=["category_level1_names"])
+categories_level1_df["category_level1_index"] = [i for i in range(len(categories_level1_list))]
+
+# Create dictionaries for quick lookup of `category_id` to `category_level1_index` mapping.
+cat2idx_level1 = utils.make_category_table_level1(categories_level1_df, categories_df)
+
+
+# For level2
+
+# Maps the category_id_level1 to an integer index (category_level1_index)
+categories_level2_list = list(categories_df["category_level2"].unique())
+categories_level2_df = pd.DataFrame(categories_level2_list, columns=["category_level2_names"])
+categories_level2_df["category_level2_index"] = [i for i in range(len(categories_level2_list))]
+
+# Create dictionaries for quick lookup of `category_id` to `category_level1_index` mapping.
+cat2idx_level2 = utils.make_category_table_level2(categories_level2_df, categories_df)
 
 
 # ## Read the BSON files
@@ -201,6 +225,9 @@ print("Successfully save test_offsets.csv")
 print("Spliting train/val set:")
 train_images_df, val_images_df = make_val_set(
     train_offsets_df,
+    cat2idx,
+    cat2idx_level1,
+    cat2idx_level2,
     split_percentage=0.1,
     drop_percentage=0)
 
