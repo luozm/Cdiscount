@@ -31,8 +31,9 @@ from keras.applications.resnet50 import ResNet50
 from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau, LearningRateScheduler
 
 # custom callbacks, not the original keras one
-from utils.callbacks import TensorBoard, SnapshotModelCheckpoint
+from utils.callbacks import TensorBoard, SnapshotModelCheckpoint, LossWeightsModifier
 import utils.utils as utils
+from model import *
 
 
 # The Keras generator is implemented by the `BSONIterator` class.
@@ -90,8 +91,8 @@ class BSONIterator(Iterator):
         if self.__labelled:
             batch_y = np.zeros((len(batch_x), self.__num_label), dtype=K.floatx())
             if self.__use_hierarchical_label:
-                batch_y_level1 = np.zeros((len(batch_x), self.__num_label), dtype=K.floatx())
-                batch_y_level2 = np.zeros((len(batch_x), self.__num_label), dtype=K.floatx())
+                batch_y_level1 = np.zeros((len(batch_x), self.__num_label_level1), dtype=K.floatx())
+                batch_y_level2 = np.zeros((len(batch_x), self.__num_label_level2), dtype=K.floatx())
 
         for i, j in enumerate(index_array):
             # Protect file and data frame access with a lock.
@@ -127,7 +128,7 @@ class BSONIterator(Iterator):
             if not self.__use_hierarchical_label:
                 return batch_x, batch_y
             else:
-                return batch_x, batch_y, batch_y_level1, batch_y_level2
+                return batch_x, [batch_y_level1, batch_y_level2, batch_y]
         else:
             return batch_x
 
@@ -184,8 +185,8 @@ class PickleGenerator(Iterator):
         if self.__labelled:
             batch_y = np.zeros((len(batch_x), self.__num_label), dtype=K.floatx())
             if self.__use_hierarchical_label:
-                batch_y_level1 = np.zeros((len(batch_x), self.__num_label), dtype=K.floatx())
-                batch_y_level2 = np.zeros((len(batch_x), self.__num_label), dtype=K.floatx())
+                batch_y_level1 = np.zeros((len(batch_x), self.__num_label_level1), dtype=K.floatx())
+                batch_y_level2 = np.zeros((len(batch_x), self.__num_label_level2), dtype=K.floatx())
 
         for i, j in enumerate(index_array):
             sample = self.__pickle_file.iloc[j]
@@ -208,7 +209,7 @@ class PickleGenerator(Iterator):
             if not self.__use_hierarchical_label:
                 return batch_x, batch_y
             else:
-                return batch_x, batch_y, batch_y_level1, batch_y_level2
+                return batch_x, [batch_y_level1, batch_y_level2, batch_y]
         else:
             return batch_x
 
@@ -289,12 +290,12 @@ num_val_images = len(pickle_file)
 lock = threading.Lock()
 train_bson_file = open(train_bson_path, "rb")
 
-batch_size = 256
+batch_size = 128
 num_epoch = 6
 initial_learning_rate = 0.001
 num_final_dense_layer = 128
 num_snapshots = 3
-model_prefix = 'Xception-pretrained-%d' % num_final_dense_layer
+model_prefix = 'Xception-branch-pretrained-%d' % num_final_dense_layer
 
 
 # Create a generator for training and a generator for validation.
@@ -314,12 +315,22 @@ train_gen = BSONIterator(train_bson_file,
                          num_classes,
                          train_datagen,
                          lock,
+                         num_label_level1=num_classes_level1,
+                         num_label_level2=num_classes_level2,
                          batch_size=batch_size,
-                         shuffle=True
+                         shuffle=True,
+                         use_hierarchical_label=True
                          )
 
 val_datagen = ImageDataGenerator()
-val_gen = PickleGenerator(num_classes, pickle_file, val_datagen, batch_size=batch_size)
+val_gen = PickleGenerator(num_classes,
+                          pickle_file,
+                          val_datagen,
+                          batch_size=batch_size,
+                          num_label_level1=num_classes_level1,
+                          num_label_level2=num_classes_level2,
+                          use_hierarchical_label=True
+                          )
 
 """
 # show images after augmentation
@@ -338,55 +349,32 @@ plt.show()
 
 # Part 3: Training
 
-base_model = Xception(include_top=False, weights='imagenet', input_shape=(180, 180, 3))
+model = xception_branch(128)
 
-# add a global spatial average pooling layer
-x = base_model.output
-x = GlobalAveragePooling2D()(x)
+# optimizer
+adam = Adam(lr=initial_learning_rate, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
 
-# add a fully connected layer to reduce the parameters between last 2 layers
-x = Dense(num_final_dense_layer)(x)
-x = BatchNormalization()(x)
-x = Activation("selu")(x)
+# loss weights of 3 branches
+lw1 = K.variable(value=0.98, dtype="float32", name="loss_weight1")  # A1 in paper
+lw2 = K.variable(value=0.01, dtype="float32", name="loss_weight2")  # A2 in paper
+lw3 = K.variable(value=0.01, dtype="float32", name="loss_weight3")  # A3 in paper
 
-# add a logistic layer
-output = Dense(num_classes, activation='softmax')(x)
-
-# this is the model we will train
-model = Model(inputs=base_model.input, outputs=output)
-
+model.compile(optimizer=adam,
+              loss="categorical_crossentropy",
+              loss_weights=[lw1, lw2, lw3],
+              metrics=["accuracy"],
+              )
 
 # let's visualize layer names and layer indices to see how many layers
 # we should freeze:
 # for i, layer in enumerate(model.layers):
 #    print(i, layer.name)
 
-# we chose to train the top block and dense layers, i.e. we will freeze
-# the first 126 layers and unfreeze the rest:
-for layer in model.layers[:126]:
-    layer.trainable = False
-for layer in model.layers[126:]:
-    layer.trainable = True
-
 
 # Train a Xception without pre-train parameters
 # model = Xception(include_top=True, weights=None, input_shape=(180, 180, 3), classes=num_classes)
 
 # model = load_model('./weights/Xception-pretrained-128-Best.h5')
-
-# optimizer
-adam = Adam(lr=initial_learning_rate, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
-
-# record metadata during training
-# run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
-# run_metadata = tf.RunMetadata()
-
-model.compile(optimizer=adam,
-              loss="categorical_crossentropy",
-              metrics=["accuracy"],
-              # options=run_options,
-              # run_metadata=run_metadata,
-              )
 
 model.summary()
 
@@ -416,6 +404,7 @@ callback_list = [
         save_weights_only=False),
     LearningRateScheduler(schedule=_cosine_anneal_schedule),
     snapshot,
+    LossWeightsModifier(lw1, lw2, lw3),
 #    tensorboard
 ]
 

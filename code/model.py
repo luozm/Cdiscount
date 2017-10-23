@@ -18,8 +18,8 @@ import utils.utils as utils
 
 
 num_classes = utils.num_classes
-num_classes1 = utils.num_classes1
-num_classes2 = utils.num_classes2
+num_classes1 = utils.num_class_level_one
+num_classes2 = utils.num_class_level_two
 
 
 # define loss function DARC1, employed by paper: "Generalization in Deep Learning"
@@ -32,7 +32,7 @@ def DARC1(y_true, y_pred):
     return K.sum(xentropy, alpha*reg)
 
 
-def branch(input, num_filters, name, actvation='selu', ):
+def branch(input, num_filters, num_output, name, actvation='selu'):
     # input = MaxPooling2D((3, 3), strides=(2, 2), name=name+'_max_pool')(input)
     b = SeparableConv2D(num_filters, (3, 3), padding='same', use_bias=False, name=name+'_sepconv1')(input)
     b = BatchNormalization(name=name+'_sepconv1_bn')(b)
@@ -42,7 +42,7 @@ def branch(input, num_filters, name, actvation='selu', ):
     b = Activation(actvation, name=name+'_sepconv2_act')(b)
     b = GlobalAveragePooling2D(name=name+'_avg_pool')(b)
     # output (no softmax for DARC1)
-    output = Dense(num_classes1, name=name+'_output')(b)
+    output = Dense(num_output, name=name+'_out')(b)
     return output
 
 
@@ -87,18 +87,18 @@ def xception(num_dense, lr, use_pretrain=True, trainable_layers=106):
     return model
 
 
-def xception_branch(num_dense, lr):
+def xception_branch(num_dense):
     base_model = Xception(include_top=False, weights='imagenet', input_shape=(180, 180, 3))
 
     # add branches into the model
 
     # branch1
-    x1 = base_model.layers[96].output
-    output1 = branch(x1, 728, name='branch1')
+    x1 = base_model.layers[106].output
+    output1 = branch(x1, 728, num_classes1, name='b1')
 
     # branch2
-    x2 = base_model.layers[106].output
-    output2 = branch(x2, 728, name='branch2')
+    x2 = base_model.layers[116].output
+    output2 = branch(x2, 728, num_classes2, name='b2')
 
     # add a global spatial average pooling layer
     x = base_model.output
@@ -108,34 +108,15 @@ def xception_branch(num_dense, lr):
     x = BatchNormalization()(x)
     x = Activation("selu")(x)
     # output (no softmax for DARC1)
-    output3 = Dense(num_classes)(x)
+    output3 = Dense(num_classes, name="out")(x)
     # this is the model we will train
     model = Model(inputs=base_model.input, outputs=[output1, output2, output3])
 
     # we chose to train the top block and dense layers, i.e. we will freeze
     # the first 126 layers and unfreeze the rest:
-    for layer in model.layers[:116]:
+    for layer in model.layers[:86]:
         layer.trainable = False
-    for layer in model.layers[116:]:
+    for layer in model.layers[86:]:
         layer.trainable = True
 
-    # optimizer
-    adam = Adam(lr=lr, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
-
-    # loss weights of 3 branches
-    lw1 = K.variable(value=0.98, dtype="float32", name="loss_weight1")  # A1 in paper
-    lw2 = K.variable(value=0.01, dtype="float32", name="loss_weight2")  # A2 in paper
-    lw3 = K.variable(value=0.01, dtype="float32", name="loss_weight3")  # A3 in paper
-
-    model.compile(optimizer=adam,
-                  loss=DARC1,
-                  loss_weights=[lw1, lw2, lw3],
-                  metrics=["accuracy"],
-                  )
     return model
-
-
-model = xception_branch(128, 0.0001)
-model.summary()
-
-
