@@ -32,7 +32,7 @@ def DARC1(y_true, y_pred):
     return xentropy+alpha*reg
 
 
-def branch(input, num_filters, num_output, name, actvation='selu'):
+def branch(input, num_filters, num_output, name, actvation='relu'):
     # input = MaxPooling2D((3, 3), strides=(2, 2), name=name+'_max_pool')(input)
     b = SeparableConv2D(num_filters, (3, 3), padding='same', use_bias=False, name=name+'_sepconv1')(input)
     b = BatchNormalization(name=name+'_sepconv1_bn')(b)
@@ -47,7 +47,7 @@ def branch(input, num_filters, num_output, name, actvation='selu'):
 
 
 # Xception model
-def xception(num_dense, lr, use_pretrain=True, trainable_layers=106):
+def xception(num_dense, lr, use_pretrain=True, trainable_layers=126):
     if not use_pretrain:
         model = Xception(include_top=True, weights=None, input_shape=(180, 180, 3), classes=num_classes)
     else:
@@ -56,11 +56,11 @@ def xception(num_dense, lr, use_pretrain=True, trainable_layers=106):
         x = base_model.output
         x = GlobalAveragePooling2D()(x)
         # add a fully connected layer to reduce the parameters between last 2 layers
-        x = Dense(num_dense)(x)
-        x = BatchNormalization()(x)
-        x = Activation("selu")(x)
+#        x = Dense(num_dense)(x)
+#        x = BatchNormalization()(x)
+#        x = Activation("relu")(x)
         # add a logistic layer
-        output = Dense(num_classes, activation='softmax')(x)
+        output = Dense(num_classes)(x)
         # this is the model we will train
         model = Model(inputs=base_model.input, outputs=output)
 
@@ -79,7 +79,7 @@ def xception(num_dense, lr, use_pretrain=True, trainable_layers=106):
             layer.trainable = True
 
         model.compile(optimizer=adam,
-                      loss="categorical_crossentropy",
+                      loss=DARC1,
                       metrics=["accuracy"],
                       #              options=run_options,
                       #              run_metadata=run_metadata,
@@ -106,7 +106,7 @@ def xception_branch(num_dense):
     # add a fully connected layer to reduce the parameters between last 2 layers
     x = Dense(num_dense)(x)
     x = BatchNormalization()(x)
-    x = Activation("selu")(x)
+    x = Activation("relu")(x)
     # output (no softmax for DARC1)
     output3 = Dense(num_classes, name="out")(x)
     # this is the model we will train

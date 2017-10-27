@@ -10,6 +10,7 @@ import io
 import numpy as np
 import pandas as pd
 import bson
+import threading
 import matplotlib.pyplot as plt
 from tensorflow.python.client import timeline
 
@@ -284,14 +285,15 @@ num_classes_level1 = utils.num_class_level_one
 num_classes_level2 = utils.num_class_level_two
 num_train_images = len(train_image_table)
 num_val_images = len(pickle_file)
+lock = threading.Lock()
 train_bson_file = open(train_bson_path, "rb")
 
-batch_size = 256
+batch_size = 128
 num_epoch = 6
 initial_learning_rate = 0.001
 num_final_dense_layer = 128
 num_snapshots = 1
-model_prefix = 'Xception-nofc-pretrained-%d' % num_final_dense_layer
+model_prefix = 'Xception-branch-pretrained-%d' % num_final_dense_layer
 
 
 # Create a generator for training and a generator for validation.
@@ -310,8 +312,11 @@ train_gen = BSONIterator(train_bson_file,
                          train_product_table,
                          num_classes,
                          train_datagen,
+                         num_label_level1=num_classes_level1,
+                         num_label_level2=num_classes_level2,
                          batch_size=batch_size,
                          shuffle=True,
+                         use_hierarchical_label=True
                          )
 
 val_datagen = ImageDataGenerator(
@@ -321,6 +326,9 @@ val_gen = PickleGenerator(num_classes,
                           pickle_file,
                           val_datagen,
                           batch_size=batch_size,
+                          num_label_level1=num_classes_level1,
+                          num_label_level2=num_classes_level2,
+                          use_hierarchical_label=True
                           )
 
 """
@@ -339,8 +347,23 @@ plt.show()
 """
 
 # Part 3: Training
-model = xception(1, initial_learning_rate)
 
+model = xception_branch(128)
+
+# optimizer
+adam = Adam(lr=initial_learning_rate, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+
+# loss weights of 3 branches
+lw1 = K.variable(value=0.98, dtype="float32", name="loss_weight1")  # A1 in paper
+lw2 = K.variable(value=0.01, dtype="float32", name="loss_weight2")  # A2 in paper
+lw3 = K.variable(value=0.01, dtype="float32", name="loss_weight3")  # A3 in paper
+
+model.compile(optimizer=adam,
+#              loss="categorical_crossentropy",
+              loss=DARC1,
+              loss_weights=[lw1, lw2, lw3],
+              metrics=["accuracy"],
+              )
 
 # let's visualize layer names and layer indices to see how many layers
 # we should freeze:
@@ -348,39 +371,35 @@ model = xception(1, initial_learning_rate)
 #    print(i, layer.name)
 
 
-# Train a Xception without pre-train parameters
-# model = Xception(include_top=True, weights=None, input_shape=(180, 180, 3), classes=num_classes)
-
 # model = load_model('./weights/Xception-pretrained-128-Best.h5')
 
-model.summary()
+#model.summary()
 
 # Callbacks
 # Visualization when training
 tensorboard = TensorBoard(
-    log_dir=log_dir+"/nofc",
+    log_dir=log_dir+"/branch/add_fc/%d" % num_final_dense_layer,
     histogram_freq=0,
     batch_size=batch_size,
     write_graph=True,
     write_images=False,
     write_batch_performance=True)
 
-
 # Reduce learning rate when loss has stopped improving
 # reduce_lr = ReduceLROnPlateau(monitor='loss', factor=0.8, patience=2)
 
 # Build snapshot callback
-snapshot = SnapshotModelCheckpoint(num_epoch, num_snapshots, fn_prefix=model_dir + "%s" % model_prefix)
+#snapshot = SnapshotModelCheckpoint(num_epoch, num_snapshots, fn_prefix=model_dir + "%s" % model_prefix)
 
 callback_list = [
-    ModelCheckpoint(
-        model_dir+"%s-Best.h5" % model_prefix,
-        monitor="val_acc",
-        save_best_only=True,
-        save_weights_only=False),
+#    ModelCheckpoint(
+#        model_dir+"%s-Best.h5" % model_prefix,
+#        monitor="val_out_loss",
+#        save_best_only=True,
+#        save_weights_only=False),
     LearningRateScheduler(schedule=_cosine_anneal_schedule),
-    snapshot,
-#    LossWeightsModifier(lw1, lw2, lw3),
+#    snapshot,
+    LossWeightsModifier(lw1, lw2, lw3),
     tensorboard,
 ]
 
@@ -392,10 +411,10 @@ sys_mon.start()
 # To train the model:
 history = model.fit_generator(
     train_gen,
-    steps_per_epoch=(num_train_images // batch_size)+1,
-    epochs=num_epoch,
+    steps_per_epoch=(1000 // batch_size)+1,
+    epochs=2,
     validation_data=val_gen,
-    validation_steps=(num_val_images // batch_size)+1,
+    validation_steps=(1000 // batch_size)+1,
     max_queue_size=100,
     workers=8,
     callbacks=callback_list,
@@ -407,18 +426,18 @@ title = '{0:.2f} seconds of computation, no multiprocessing, batch size = {1}'.f
 sys_mon.plot(title, True)
 plt.show()
 
-print(snapshot.lr)
-visual_result(history, snapshot.lr)
+#print(snapshot.lr)
+#visual_result(history, snapshot.lr)
 
-"""
-# Profling using timeline (go to the page chrome://tracing and load the timeline.json file)
-trace = timeline.Timeline(step_stats=run_metadata.step_stats)
-with open('timeline.ctf.json', 'w') as f:
-    f.write(trace.generate_chrome_trace_format())
 
+#---------------------------------------------------------------------------------
+# The following compile() is just a behavior to make sure this model can be saved.
+# We thought it may be a bug of Keras which cannot save a model compiled with loss_weights parameter
+#---------------------------------------------------------------------------------
+model.compile(loss=keras.losses.categorical_crossentropy,
+              optimizer=adam,
+              metrics=['accuracy'])
 
 # Save model
-savepath='./models/Xception_model.h5'
-model.save(savepath)
-print("Successfully save model in Xception_model.h5")
-"""
+model.save(model_dir+"%s.h5" % model_prefix)
+print("Successfully save model")

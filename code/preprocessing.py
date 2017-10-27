@@ -116,8 +116,11 @@ def make_val_set(product_table, category2index, category2index_level1, category2
                 
     columns = ["product_id", "category_idx", "category_idx_level1", "category_idx_level2", "img_idx"]
     train_df = pd.DataFrame(train_list, columns=columns)
-    val_df = pd.DataFrame(val_list, columns=columns)   
-    return train_df, val_df
+    # Shuffle the whole training set
+    train_df_shuffle = train_df.sample(frac=1).reset_index(drop=True)
+
+    val_df = pd.DataFrame(val_list, columns=columns)
+    return train_df_shuffle, val_df
 
 
 def make_test_set(df):
