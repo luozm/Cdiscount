@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import bson
 
-from model import DARC1
+#from model import DARC1
 
 from keras import backend as K
 from keras.preprocessing.image import load_img, img_to_array
@@ -54,7 +54,8 @@ test_data = bson.decode_file_iter(test_bson_file)
 #
 # Use idx2cat[] to convert the predicted category index back to the original class label.
 
-model = load_model(model_dir+"Xception-nofc-pretrained-128.h5", custom_objects={'DARC1': DARC1})
+model = load_model(model_dir+"Xception-pretrained-128-Best.h5")
+#model = load_model(model_dir+"Xception-nofc-pretrained-128.h5", custom_objects={'DARC1': DARC1})
 
 pred_cat_id = []
 
