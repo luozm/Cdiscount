@@ -610,6 +610,10 @@ class SnapshotModelCheckpoint(Callback):
             filepath = self.fn_prefix + "-%d.h5" % ((epoch + 1) // self.check)
             self.model.save_weights(filepath, overwrite=True)
 #            print("\nSaved snapshot at weights/%s_%d.h5" % (self.fn_prefix, epoch+1))
+    def on_batch_end(self, batch, logs=None):
+        logs = logs or {}
+        filepath = self.fn_prefix + "3.h5"#"-%d.h5" % ((epoch + 1) // self.check)
+        self.model.save(filepath, overwrite=True)
 
 
 class SnapshotCallbackBuilder:
