@@ -12,3 +12,5 @@
 /**/*.caffemodel
 /**/*.h5
 
+# Pycharm files
+.idea
