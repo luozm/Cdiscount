@@ -37,6 +37,8 @@ with tqdm(total=num_val_images) as pbar:
         bson_img = item["imgs"][image[5]]["picture"]
 
         val_full_dataset.append({"image": bson_img,
+                                 "product_id": image[1],
+                                 "img_idx": image[5],
                                  "label": image[2],
                                  "label_level1": image[3],
                                  "label_level2": image[4]})
