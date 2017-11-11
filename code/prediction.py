@@ -55,9 +55,10 @@ test_data = bson.decode_file_iter(test_bson_file)
 # Use idx2cat[] to convert the predicted category index back to the original class label.
 
 #model = load_model(model_dir+"Xception-pretrained-128-Best.h5")
-model = xception(1, 1)
+#model = xception(1, 1)
+model = xception_branch(128)
 
-model.load_weights(model_dir+"Xception-nofc-pretrained-1286666.h5")
+model.load_weights(model_dir+"Xception-branch-pretrained-1282.h5")
 #model = load_model(model_dir+"Xception-nofc-pretrained-1286666.h5")#, custom_objects={'DARC1': DARC1})
 
 pred_cat_id = []
@@ -80,9 +81,10 @@ with tqdm(total=num_test_products) as pbar:
             # Add the image to the batch.
             batch_x[i] = x
 
-        prediction = model.predict(batch_x, batch_size=num_imgs)
+        prediction = model.predict(batch_x, batch_size=num_imgs)#[2]
+        print (len(prediction))
         # predict product idx by the average of each images
-        avg_pred = prediction.mean(axis=0)
+        avg_pred = prediction[2].mean(axis=0)
         cat_idx = np.argmax(avg_pred)
         pred_cat_id.append(idx2cat[cat_idx])
         pbar.update()

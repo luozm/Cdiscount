@@ -1,6 +1,5 @@
 # Temp files
 /**/*.pyc
-/**/*.xml
 
 # utils files
 /**/*.csv
@@ -14,4 +13,4 @@
 /**/*.h5
 
 # Pycharm files
-.idea
+/.idea/*.*

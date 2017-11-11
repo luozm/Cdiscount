@@ -2,9 +2,6 @@
 # Keras called `BSONIterator` that can read directly from the BSON data.
 # You can use it in combination with `ImageDataGenerator` for doing data augmentation.
 
-from importlib import reload
-import utils.sysmonitor as SM
-reload(SM)
 import os
 import io
 import numpy as np
@@ -389,7 +386,7 @@ tensorboard = TensorBoard(
 # reduce_lr = ReduceLROnPlateau(monitor='loss', factor=0.8, patience=2)
 
 # Build snapshot callback
-#snapshot = SnapshotModelCheckpoint(num_epoch, num_snapshots, fn_prefix=model_dir + "%s" % model_prefix)
+snapshot = SnapshotModelCheckpoint(num_epoch, num_snapshots, fn_prefix=model_dir + "%s" % model_prefix)
 
 callback_list = [
 #    ModelCheckpoint(
@@ -398,15 +395,10 @@ callback_list = [
 #        save_best_only=True,
 #        save_weights_only=False),
     LearningRateScheduler(schedule=_cosine_anneal_schedule),
-#    snapshot,
+    snapshot,
     LossWeightsModifier(lw1, lw2, lw3),
     tensorboard,
 ]
-
-# Monitoring the status of GPU & CPU
-sys_mon = SM.SysMonitor()
-sys_mon.start()
-
 
 # To train the model:
 history = model.fit_generator(
@@ -421,16 +413,11 @@ history = model.fit_generator(
     # initial_epoch=2
     )
 
-sys_mon.stop()
-title = '{0:.2f} seconds of computation, no multiprocessing, batch size = {1}'.format(sys_mon.duration, batch_size)
-sys_mon.plot(title, True)
-plt.show()
-
 #print(snapshot.lr)
 #visual_result(history, snapshot.lr)
 
 
-#---------------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------
 # The following compile() is just a behavior to make sure this model can be saved.
 # We thought it may be a bug of Keras which cannot save a model compiled with loss_weights parameter
 #---------------------------------------------------------------------------------

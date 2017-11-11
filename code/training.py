@@ -10,7 +10,6 @@ import bson
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from tensorflow.python.client import timeline
 
 import tensorflow as tf
 import keras
@@ -19,18 +18,11 @@ from keras.preprocessing.image import load_img, img_to_array
 from keras.preprocessing.image import Iterator
 from keras.preprocessing.image import ImageDataGenerator
 from keras import backend as K
-from keras.models import Model, load_model
-from keras.layers import Dropout, Flatten, BatchNormalization, Dense, Activation
-from keras.layers.convolutional import Conv2D
-from keras.layers.pooling import MaxPooling2D, GlobalAveragePooling2D
 from keras.optimizers import Adam, SGD, Adamax
-from keras.applications.inception_resnet_v2 import InceptionResNetV2
-from keras.applications.xception import Xception
-from keras.applications.resnet50 import ResNet50
-from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau, LearningRateScheduler
+from keras.callbacks import ReduceLROnPlateau, LearningRateScheduler
 
 # custom callbacks, not the original keras one
-from utils.callbacks import TensorBoard, SnapshotModelCheckpoint, LossWeightsModifier
+from utils.callbacks import TensorBoard, SnapshotModelCheckpoint, ModelCheckpoint
 import utils.utils as utils
 from model import *
 
@@ -134,7 +126,7 @@ class BSONIterator(Iterator):
             index_array = next(self.index_generator)
         return self._get_batches_of_transformed_samples(index_array)
 
-##
+
 class PickleGenerator(Iterator):
     def __init__(self, num_label, pickle_file, image_data_generator, batch_size=32,
                  num_label_level1=None, num_label_level2=None, use_hierarchical_label=False,
@@ -212,7 +204,7 @@ class PickleGenerator(Iterator):
 
 
 # visualizing losses and accuracy, and real learning rate
-def visual_result(hist, lr):
+def visual_result(hist, lr=None):
     train_loss = hist.history['loss']
     val_loss = hist.history['val_loss']
     train_acc = hist.history['acc']
@@ -228,10 +220,10 @@ def visual_result(hist, lr):
     plt.title('train_loss vs val_loss')
     plt.grid(True)
     plt.legend(['train', 'val'])
-
     # use bmh, classic,ggplot for big pictures
     plt.style.available
     plt.style.use(['classic'])
+    plt.savefig('loss.jpg')
 
     # Accuracy
     plt.figure(2, figsize=(7, 5))
@@ -245,20 +237,21 @@ def visual_result(hist, lr):
     # use bmh, classic,ggplot for big pictures
     plt.style.available
     plt.style.use(['classic'])
+    plt.savefig('acc.jpg')
 
     # LearningRate
-    plt.figure(3, figsize=(7, 5))
-    plt.plot(xc, lr)
-    plt.xlabel('num of Epochs')
-    plt.ylabel('learning rate')
-    plt.title('Real Learning Rate')
-    plt.grid(True)
-    plt.legend(['lr'])
+    if lr is not None:
+        plt.figure(3, figsize=(7, 5))
+        plt.plot(xc, lr)
+        plt.xlabel('num of Epochs')
+        plt.ylabel('learning rate')
+        plt.title('Real Learning Rate')
+        plt.grid(True)
+        plt.legend(['lr'])
+        plt.savefig('lr.jpg')
 
-    plt.savefig('history.jpg')
 
-
-# LearningRate Schedule
+# LearningRate Schedule for Snapshot Ensemble
 def _cosine_anneal_schedule(t):
     cos_inner = np.pi * (t % (num_epoch // num_snapshots))  # t - 1 is used when t has 1-based indexing.
     cos_inner /= num_epoch // num_snapshots
@@ -266,7 +259,10 @@ def _cosine_anneal_schedule(t):
     return float(initial_learning_rate / 2 * cos_out)
 
 
-# Part 2: The generator
+# ---------------------------------------------------------------------------------
+# Initialization
+#
+
 # Input data files are available in the "../data/input/" directory.
 data_dir = utils.data_dir
 utils_dir = utils.utils_dir
@@ -287,21 +283,15 @@ num_val_images = len(pickle_file)
 train_bson_file = open(train_bson_path, "rb")
 
 num_gpus = 8
-batch_size = 32*num_gpus
-#batch_size = 256
-num_epoch = 6
+batch_size = 64*num_gpus
+num_epoch = 10
 initial_learning_rate = 0.001
 num_final_dense_layer = 128
 num_snapshots = 1
-#model_prefix = 'Xception-pretrained-%d' % num_final_dense_layer
-model_prefix = 'Xception-nofc-pretrained-%d' % num_final_dense_layer
-
-
+model_prefix = 'Xception-pretrained-%d' % num_final_dense_layer
 
 
 # Create a generator for training and a generator for validation.
-
-# Tip: use ImageDataGenerator for data augmentation and preprocessing.
 train_datagen = ImageDataGenerator(
      rescale=1./255,
      horizontal_flip=True,
@@ -343,11 +333,12 @@ while count <= 15:
 plt.show()
 """
 
-# Part 3: Training
-#model = xception(num_final_dense_layer, initial_learning_rate, trainable_layers=0)
-#model = resnet_50(initial_learning_rate)
+# ---------------------------------------------------------------------------------
+# Training on multi-GPU
+#
+
 with tf.device("/cpu:0"):
-    model = xception(1, initial_learning_rate)
+    model = xception(num_final_dense_layer, trainable_layers=126, use_darc1=False)
 
 # make the model parallel
 parallel_model = multi_gpu_model(model, gpus=num_gpus)
@@ -357,18 +348,14 @@ adam = Adam(lr=initial_learning_rate, beta_1=0.9, beta_2=0.999, epsilon=1e-08, d
 
 parallel_model.compile(
     optimizer=adam,
-    loss=DARC1,
+#    loss=DARC1,
+    loss='categorical_crossentropy',
     metrics=["accuracy"],
 )
-#model.save(model_dir + "%s" % model_prefix+"6666.h5")
-#print (model_dir + "%s" % model_prefix+"6666.h5")
-parallel_model.summary()
-'''
-model.compile(optimizer=adam,
-              loss=DARC1,
-              metrics=["accuracy"],
-              )
-'''
+
+model.summary()
+#parallel_model.summary()
+
 
 # let's visualize layer names and layer indices to see how many layers
 # we should freeze:
@@ -376,17 +363,10 @@ model.compile(optimizer=adam,
 #    print(i, layer.name)
 
 
-# Train a Xception without pre-train parameters
-# model = Xception(include_top=True, weights=None, input_shape=(180, 180, 3), classes=num_classes)
-
-# model = load_model('./weights/Xception-pretrained-128-Best.h5')
-
-#model.summary()
-
 # Callbacks
 # Visualization when training
 tensorboard = TensorBoard(
-    log_dir=log_dir+"/nofc",
+    log_dir=log_dir+"/add_fc/%d" % num_final_dense_layer,
     histogram_freq=0,
     batch_size=batch_size,
     write_graph=True,
@@ -395,23 +375,35 @@ tensorboard = TensorBoard(
 
 
 # Reduce learning rate when loss has stopped improving
-# reduce_lr = ReduceLROnPlateau(monitor='loss', factor=0.8, patience=2)
+reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=2)
 
-# Build snapshot callback
+# Build snapshot callbacks
+"""
 snapshot = SnapshotModelCheckpoint(num_epoch, num_snapshots, model, fn_prefix=model_dir + "%s" % model_prefix)
-
-callback_list = [
+callback_list_snapshot = [
     ModelCheckpoint(
         model_dir+"%s-Best.h5" % model_prefix,
         monitor="val_acc",
         save_best_only=True,
-        save_weights_only=False),
+        save_weights_only=True,
+        base_model=model),
+    reduce_lr,
     LearningRateScheduler(schedule=_cosine_anneal_schedule),
     snapshot,
-#    LossWeightsModifier(lw1, lw2, lw3),
-#    tensorboard,
+    tensorboard,
 ]
+"""
 
+callback_list = [
+    ModelCheckpoint(
+        model_dir+"%s-{epoch:02d}-{val_loss:.2f}" % model_prefix,
+        monitor="val_acc",
+        save_best_only=False,
+        save_weights_only=True,
+        base_model=model),
+    reduce_lr,
+    tensorboard,
+]
 
 # To train the model:
 history = parallel_model.fit_generator(
@@ -423,12 +415,7 @@ history = parallel_model.fit_generator(
     max_queue_size=100,
     workers=8,
     callbacks=callback_list,
-    # initial_epoch=2
+#    initial_epoch=2
     )
 
-
-print(snapshot.lr)
-visual_result(history, snapshot.lr)
-
-savepath='./models/Xception_model.h5'
-model.save(savepath)
+visual_result(history)
