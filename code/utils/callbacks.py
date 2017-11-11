@@ -596,13 +596,14 @@ class SnapshotModelCheckpoint(Callback):
         fn_prefix: prefix for the filename of the weights.
     """
 
-    def __init__(self, nb_epochs, nb_snapshots, fn_prefix='Model'):
+    def __init__(self, nb_epochs, nb_snapshots, init_model, fn_prefix='Model'):
         super(SnapshotModelCheckpoint, self).__init__()
         self.check = nb_epochs // nb_snapshots
         self.fn_prefix = fn_prefix
         self.T = nb_epochs
         self.M = nb_snapshots
         self.lr = []
+        self.init_model = init_model
 
     def on_epoch_end(self, epoch, logs={}):
         self.lr.append(K.get_value(self.model.optimizer.lr))
@@ -610,11 +611,12 @@ class SnapshotModelCheckpoint(Callback):
             filepath = self.fn_prefix + "-%d.h5" % ((epoch + 1) // self.check)
             self.model.save_weights(filepath, overwrite=True)
 #            print("\nSaved snapshot at weights/%s_%d.h5" % (self.fn_prefix, epoch+1))
-    #def on_batch_end(self, batch, logs=None):
-    #    logs = logs or {}
-    #    filepath = self.fn_prefix + "3.h5"#"-%d.h5" % ((epoch + 1) // self.check)
-    #    self.model.save(filepath, overwrite=True)
 
+    #def on_batch_end(self, batch, logs=None):
+        #logs = logs or {}
+        #filepath = self.fn_prefix + str(batch)+".h5"
+        #self.init_model.save_weights(filepath, overwrite=True)
+        #print (filepath)
 
 class SnapshotCallbackBuilder:
     """Callback builder for snapshot ensemble training of a model.

@@ -64,26 +64,12 @@ def xception(num_dense, lr, use_pretrain=True, trainable_layers=126):
         # this is the model we will train
         model = Model(inputs=base_model.input, outputs=output)
 
-        # optimizer
-        adam = Adam(lr=lr, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
-
-        # record metadata during training
-        # run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
-        # run_metadata = tf.RunMetadata()
-
         # we chose to train the top block and dense layers, i.e. we will freeze
         # the first 126 layers and unfreeze the rest:
-        for layer in model.layers[:trainable_layers]:
-            layer.trainable = False
-        for layer in model.layers[trainable_layers:]:
-            layer.trainable = True
-
-        model.compile(optimizer=adam,
-                      loss=DARC1,
-                      metrics=["accuracy"],
-                      #              options=run_options,
-                      #              run_metadata=run_metadata,
-                      )
+#        for layer in model.layers[:trainable_layers]:
+#            layer.trainable = False
+#        for layer in model.layers[trainable_layers:]:
+#            layer.trainable = True
     return model
 
 
@@ -118,39 +104,5 @@ def xception_branch(num_dense):
         layer.trainable = False
     for layer in model.layers[86:]:
         layer.trainable = True
-
-    return model
-
-
-def resnet_50(lr):
-    base_model = ResNet50(include_top=False, weights='imagenet', input_shape=(180, 180, 3))
-
-    x = base_model.output
-    x = GlobalAveragePooling2D()(x)
-
-    output = Dense(num_classes)(x)
-    # this is the model we will train
-    model = Model(inputs=base_model.input, outputs=output)
-
-    # optimizer
-    adam = Adam(lr=lr, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
-
-    # record metadata during training
-    # run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
-    # run_metadata = tf.RunMetadata()
-
-    # we chose to train the top block and dense layers, i.e. we will freeze
-    # the first 126 layers and unfreeze the rest:
-    for layer in model.layers[:0]:
-        layer.trainable = False
-    for layer in model.layers[0:]:
-        layer.trainable = True
-
-    model.compile(optimizer=adam,
-                  loss=DARC1,
-                  metrics=["accuracy"],
-                  #              options=run_options,
-                  #              run_metadata=run_metadata,
-                  )
 
     return model

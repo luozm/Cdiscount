@@ -2,19 +2,19 @@
 # Keras called `BSONIterator` that can read directly from the BSON data.
 # You can use it in combination with `ImageDataGenerator` for doing data augmentation.
 
-from importlib import reload
-import utils.sysmonitor as SM
-reload(SM)
 import os
 import io
 import numpy as np
 import pandas as pd
 import bson
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from tensorflow.python.client import timeline
 
 import tensorflow as tf
 import keras
+from keras.utils.training_utils import multi_gpu_model
 from keras.preprocessing.image import load_img, img_to_array
 from keras.preprocessing.image import Iterator
 from keras.preprocessing.image import ImageDataGenerator
@@ -255,7 +255,7 @@ def visual_result(hist, lr):
     plt.grid(True)
     plt.legend(['lr'])
 
-    plt.show()
+    plt.savefig('history.jpg')
 
 
 # LearningRate Schedule
@@ -286,12 +286,17 @@ num_train_images = len(train_image_table)
 num_val_images = len(pickle_file)
 train_bson_file = open(train_bson_path, "rb")
 
-batch_size = 256
+num_gpus = 8
+batch_size = 32*num_gpus
+#batch_size = 256
 num_epoch = 6
 initial_learning_rate = 0.001
 num_final_dense_layer = 128
 num_snapshots = 1
-model_prefix = 'Xception-pretrained-%d' % num_final_dense_layer
+#model_prefix = 'Xception-pretrained-%d' % num_final_dense_layer
+model_prefix = 'Xception-nofc-pretrained-%d' % num_final_dense_layer
+
+
 
 
 # Create a generator for training and a generator for validation.
@@ -341,6 +346,29 @@ plt.show()
 # Part 3: Training
 #model = xception(num_final_dense_layer, initial_learning_rate, trainable_layers=0)
 #model = resnet_50(initial_learning_rate)
+with tf.device("/cpu:0"):
+    model = xception(1, initial_learning_rate)
+
+# make the model parallel
+parallel_model = multi_gpu_model(model, gpus=num_gpus)
+
+# optimizer
+adam = Adam(lr=initial_learning_rate, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+
+parallel_model.compile(
+    optimizer=adam,
+    loss=DARC1,
+    metrics=["accuracy"],
+)
+#model.save(model_dir + "%s" % model_prefix+"6666.h5")
+#print (model_dir + "%s" % model_prefix+"6666.h5")
+parallel_model.summary()
+'''
+model.compile(optimizer=adam,
+              loss=DARC1,
+              metrics=["accuracy"],
+              )
+'''
 
 # let's visualize layer names and layer indices to see how many layers
 # we should freeze:
@@ -353,7 +381,7 @@ plt.show()
 
 # model = load_model('./weights/Xception-pretrained-128-Best.h5')
 
-model.summary()
+#model.summary()
 
 # Callbacks
 # Visualization when training
@@ -370,7 +398,7 @@ tensorboard = TensorBoard(
 # reduce_lr = ReduceLROnPlateau(monitor='loss', factor=0.8, patience=2)
 
 # Build snapshot callback
-snapshot = SnapshotModelCheckpoint(num_epoch, num_snapshots, fn_prefix=model_dir + "%s" % model_prefix)
+snapshot = SnapshotModelCheckpoint(num_epoch, num_snapshots, model, fn_prefix=model_dir + "%s" % model_prefix)
 
 callback_list = [
     ModelCheckpoint(
@@ -384,13 +412,9 @@ callback_list = [
 #    tensorboard,
 ]
 
-# Monitoring the status of GPU & CPU
-sys_mon = SM.SysMonitor()
-sys_mon.start()
-
 
 # To train the model:
-history = model.fit_generator(
+history = parallel_model.fit_generator(
     train_gen,
     steps_per_epoch=(num_train_images // batch_size)+1,
     epochs=num_epoch,
@@ -402,23 +426,9 @@ history = model.fit_generator(
     # initial_epoch=2
     )
 
-sys_mon.stop()
-title = '{0:.2f} seconds of computation, no multiprocessing, batch size = {1}'.format(sys_mon.duration, batch_size)
-sys_mon.plot(title, True)
-plt.show()
 
 print(snapshot.lr)
 visual_result(history, snapshot.lr)
 
-"""
-# Profling using timeline (go to the page chrome://tracing and load the timeline.json file)
-trace = timeline.Timeline(step_stats=run_metadata.step_stats)
-with open('timeline.ctf.json', 'w') as f:
-    f.write(trace.generate_chrome_trace_format())
-
-
-# Save model
 savepath='./models/Xception_model.h5'
 model.save(savepath)
-print("Successfully save model in Xception_model.h5")
-"""
