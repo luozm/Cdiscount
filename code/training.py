@@ -291,7 +291,7 @@ num_epoch = 6
 initial_learning_rate = 0.001
 num_final_dense_layer = 128
 num_snapshots = 1
-model_prefix = 'Xception-nofc-pretrained-%d' % num_final_dense_layer
+model_prefix = 'Xception-pretrained-%d' % num_final_dense_layer
 
 
 # Create a generator for training and a generator for validation.
@@ -339,8 +339,8 @@ plt.show()
 """
 
 # Part 3: Training
-model = xception(1, initial_learning_rate)
-
+#model = xception(num_final_dense_layer, initial_learning_rate, trainable_layers=0)
+#model = resnet_50(initial_learning_rate)
 
 # let's visualize layer names and layer indices to see how many layers
 # we should freeze:
@@ -381,7 +381,7 @@ callback_list = [
     LearningRateScheduler(schedule=_cosine_anneal_schedule),
     snapshot,
 #    LossWeightsModifier(lw1, lw2, lw3),
-    tensorboard,
+#    tensorboard,
 ]
 
 # Monitoring the status of GPU & CPU

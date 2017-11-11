@@ -1,5 +1,6 @@
 # Temp files
 /**/*.pyc
+/**/*.xml
 
 # utils files
 /**/*.csv
