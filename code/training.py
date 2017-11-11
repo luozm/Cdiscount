@@ -134,7 +134,7 @@ class BSONIterator(Iterator):
             index_array = next(self.index_generator)
         return self._get_batches_of_transformed_samples(index_array)
 
-
+##
 class PickleGenerator(Iterator):
     def __init__(self, num_label, pickle_file, image_data_generator, batch_size=32,
                  num_label_level1=None, num_label_level2=None, use_hierarchical_label=False,

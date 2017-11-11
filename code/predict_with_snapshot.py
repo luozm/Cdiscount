@@ -6,6 +6,8 @@ import numpy as np
 import pandas as pd
 import bson
 
+from model import DARC1
+
 from keras.preprocessing.image import load_img, img_to_array
 from keras.preprocessing.image import ImageDataGenerator
 from keras.models import load_model
@@ -15,18 +17,21 @@ import utils.utils as u
 
 # Make weighted prediction for each product in test dataset
 def make_weighted_prediction(test_data, test_gen, num_products, model_names, weights):
-    model = load_model(model_names[0])
+    model = []
+    for i in range(len(model_names)):
+        model.append(load_model(model_names[i]))
+        #model[i] = load_model(model_names[i], custom_objects={'DARC1': DARC1})
     pred_cat_id = []
 
     with tqdm(total=num_products) as pbar:
-        for c, d in enumerate(test_data):
+        for count, product in enumerate(test_data):
 
             # process data
 
-            num_imgs = len(d["imgs"])
+            num_imgs = len(product["imgs"])
             batch_x = np.zeros((num_imgs, 180, 180, 3), dtype='float32')
             for i in range(num_imgs):
-                bson_img = d["imgs"][i]["picture"]
+                bson_img = product["imgs"][i]["picture"]
                 # Load and preprocess the image.
                 img = load_img(io.BytesIO(bson_img), target_size=(180, 180))
                 x = img_to_array(img)
@@ -38,10 +43,11 @@ def make_weighted_prediction(test_data, test_gen, num_products, model_names, wei
             # make predictions
 
             weighted_prediction = np.zeros((num_imgs, num_classes), dtype='float32')
-            for weight, name in zip(weights, model_names):
-                model.load_weights(name)
-                prediction = model.predict(batch_x, batch_size=num_imgs)
-                weighted_prediction += weight * prediction
+            #for weight, name in zip(weights, model_names):
+            for i in range(len(weights)):
+                #model.load_weights(name)
+                prediction = model[i].predict(batch_x, batch_size=num_imgs)
+                weighted_prediction += weights[i] * prediction
             # predict product idx by the average of each images
             avg_pred = weighted_prediction.mean(axis=0)
             cat_idx = np.argmax(avg_pred)
@@ -89,7 +95,7 @@ model_prefix = 'Xception-pretrained-%d' % dense_num
 nb_snapshots = 3
 models_filenames = [model_dir+model_prefix+"-Best.h5"]
 models_filenames.extend([model_dir+model_prefix+"-%d.h5" % (i+1) for i in range(nb_snapshots)])
-
+#models_filenames = [model_dir+"Xception-nofc-pretrained-128.h5",model_dir+"Xception-nofc-pretrained-1282.h5",model_dir+"Xception-nofc-pretrained-1283.h5"]
 # model weights
 weights = [1. / len(models_filenames)] * len(models_filenames)
 
