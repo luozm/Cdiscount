@@ -1,15 +1,16 @@
-# This notebook contains a generator class for
-# Keras called `BSONIterator` that can read directly from the BSON data.
-# You can use it in combination with `ImageDataGenerator` for doing data augmentation.
+"""
+Use pre-trained CNN to extract bottleneck features (last several layer before logits).
+And save for fine-tuning last several layers.
+
+Zhimeng Luo
+"""
 
 import os
 import io
 import numpy as np
 import pandas as pd
 import bson
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
+
 
 import tensorflow as tf
 import keras
@@ -18,11 +19,7 @@ from keras.preprocessing.image import load_img, img_to_array
 from keras.preprocessing.image import Iterator
 from keras.preprocessing.image import ImageDataGenerator
 from keras import backend as K
-from keras.optimizers import Adam, SGD, Adamax
-from keras.callbacks import ReduceLROnPlateau, LearningRateScheduler
 
-# custom callbacks, not the original keras one
-from utils.callbacks import TensorBoard, SnapshotModelCheckpoint, ModelCheckpoint
 import utils.utils as utils
 from model import *
 
@@ -203,62 +200,6 @@ class PickleGenerator(Iterator):
             return batch_x
 
 
-# visualizing losses and accuracy, and real learning rate
-def visual_result(hist, lr=None):
-    train_loss = hist.history['loss']
-    val_loss = hist.history['val_loss']
-    train_acc = hist.history['acc']
-    val_acc = hist.history['val_acc']
-    xc = range(num_epoch)
-
-    # Losses
-    plt.figure(1, figsize=(7, 5))
-    plt.plot(xc, train_loss)
-    plt.plot(xc, val_loss)
-    plt.xlabel('num of Epochs')
-    plt.ylabel('loss')
-    plt.title('train_loss vs val_loss')
-    plt.grid(True)
-    plt.legend(['train', 'val'])
-    # use bmh, classic,ggplot for big pictures
-    plt.style.available
-    plt.style.use(['classic'])
-    plt.savefig('loss.jpg')
-
-    # Accuracy
-    plt.figure(2, figsize=(7, 5))
-    plt.plot(xc, train_acc)
-    plt.plot(xc, val_acc)
-    plt.xlabel('num of Epochs')
-    plt.ylabel('accuracy')
-    plt.title('train_acc vs val_acc')
-    plt.grid(True)
-    plt.legend(['train', 'val'], loc=4)
-    # use bmh, classic,ggplot for big pictures
-    plt.style.available
-    plt.style.use(['classic'])
-    plt.savefig('acc.jpg')
-
-    # LearningRate
-    if lr is not None:
-        plt.figure(3, figsize=(7, 5))
-        plt.plot(xc, lr)
-        plt.xlabel('num of Epochs')
-        plt.ylabel('learning rate')
-        plt.title('Real Learning Rate')
-        plt.grid(True)
-        plt.legend(['lr'])
-        plt.savefig('lr.jpg')
-
-
-# LearningRate Schedule for Snapshot Ensemble
-def _cosine_anneal_schedule(t):
-    cos_inner = np.pi * (t % (num_epoch // num_snapshots))  # t - 1 is used when t has 1-based indexing.
-    cos_inner /= num_epoch // num_snapshots
-    cos_out = np.cos(cos_inner) + 1
-    return float(initial_learning_rate / 2 * cos_out)
-
-
 # ---------------------------------------------------------------------------------
 # Initialization
 #
@@ -266,8 +207,6 @@ def _cosine_anneal_schedule(t):
 # Input data files are available in the "../data/input/" directory.
 data_dir = utils.data_dir
 utils_dir = utils.utils_dir
-log_dir = utils.log_dir
-model_dir = utils.model_dir
 train_bson_path = os.path.join(data_dir, "train.bson")
 
 # First load the lookup tables from the CSV files.
@@ -275,149 +214,60 @@ train_product_table = pd.read_csv(utils_dir + "train_offsets.csv", index_col=0)
 train_image_table = pd.read_csv(utils_dir + "train_images.csv", index_col=0)
 pickle_file = pd.read_pickle(utils_dir + "val_dataset.pkl")
 
-num_classes = utils.num_classes
-num_classes_level1 = utils.num_class_level_one
-num_classes_level2 = utils.num_class_level_two
 num_train_images = len(train_image_table)
 num_val_images = len(pickle_file)
 train_bson_file = open(train_bson_path, "rb")
 
 num_gpus = 8
-batch_size = 64*num_gpus
-num_epoch = 10
-initial_learning_rate = 0.001
-num_final_dense_layer = 128
-num_snapshots = 1
-model_prefix = 'Xception-pretrained-%d' % num_final_dense_layer
+batch_size = 256*num_gpus
 
 
 # Create a generator for training and a generator for validation.
-train_datagen = ImageDataGenerator(
-     rescale=1./255,
-     horizontal_flip=True,
-     zoom_range=0.2,
-     rotation_range=20,
-     width_shift_range=0.2,
-     height_shift_range=0.2,
-      )
+train_datagen = ImageDataGenerator(rescale=1./255)
 train_gen = BSONIterator(train_bson_file,
                          train_image_table,
                          train_product_table,
-                         num_classes,
+                         None,
                          train_datagen,
                          batch_size=batch_size,
-                         shuffle=True,
+                         labelled=False,
                          )
 
-val_datagen = ImageDataGenerator(
-    rescale=1./255
-)
-val_gen = PickleGenerator(num_classes,
+val_datagen = ImageDataGenerator(rescale=1./255)
+val_gen = PickleGenerator(None,
                           pickle_file,
                           val_datagen,
                           batch_size=batch_size,
+                          labelled=False,
                           )
 
-"""
-# Show images after augmentation (use for debug)
-count = 0
-n = 4
-while count <= 15:
-    bx, by = next(train_gen)
-    if count % n == 0:
-        plt.figure(figsize=(14, 6))
-    plt.subplot(1, n, count % n + 1)
-    plt.imshow(bx[-1].astype(np.uint8))
-    plt.axis('off')
-    count += 1
-plt.show()
-"""
 
 # ---------------------------------------------------------------------------------
-# Training on multi-GPU
+# Inference on multi-GPU
 #
 
 with tf.device("/cpu:0"):
-    model = xception(num_final_dense_layer, trainable_layers=126, use_darc1=False)
-    # Load weights
-#    model.load_weights(model_dir+'%s-03-2.28.h5' % model_prefix)
+    model = xception(None, trainable_layers=126, use_darc1=False, as_extractor=True)
 
 # make the model parallel
 parallel_model = multi_gpu_model(model, gpus=num_gpus)
 
-# optimizer
-adam = Adam(lr=initial_learning_rate, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+model.summary()
 
-parallel_model.compile(
-    optimizer=adam,
-#    loss=DARC1,
-    loss='categorical_crossentropy',
-    metrics=["accuracy"],
+bottleneck_features_train = parallel_model.predict_generator(
+    train_gen,
+    steps=(num_train_images // batch_size)+1,
+    workers=4,
+    verbose=1
 )
 
-model.summary()
-#parallel_model.summary()
+np.save(utils_dir+'bottleneck_features_train.npy', bottleneck_features_train)
 
+bottleneck_features_val = parallel_model.predict_generator(
+    val_gen,
+    steps=(num_val_images // batch_size)+1,
+    workers=4,
+    verbose=1
+)
 
-# let's visualize layer names and layer indices to see how many layers
-# we should freeze:
-# for i, layer in enumerate(model.layers):
-#    print(i, layer.name)
-
-
-# Callbacks
-# Visualization when training
-tensorboard = TensorBoard(
-    log_dir=log_dir+"/add_fc/%d" % num_final_dense_layer,
-    histogram_freq=0,
-    batch_size=batch_size,
-    write_graph=True,
-    write_images=False,
-    write_batch_performance=True)
-
-
-# Reduce learning rate when loss has stopped improving
-reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=1)
-
-# Build snapshot callbacks
-"""
-snapshot = SnapshotModelCheckpoint(num_epoch, num_snapshots, model, fn_prefix=model_dir + "%s" % model_prefix)
-callback_list_snapshot = [
-    ModelCheckpoint(
-        model_dir+"%s-Best.h5" % model_prefix,
-        monitor="val_acc",
-        save_best_only=True,
-        save_weights_only=True,
-        base_model=model),
-    reduce_lr,
-    LearningRateScheduler(schedule=_cosine_anneal_schedule),
-    snapshot,
-    tensorboard,
-]
-"""
-
-callback_list = [
-    ModelCheckpoint(
-        model_dir+"%s-{epoch:02d}-{val_acc:.3f}.h5" % model_prefix,
-        monitor="val_acc",
-        save_best_only=False,
-        save_weights_only=True,
-        base_model=model),
-    reduce_lr,
-    tensorboard,
-]
-
-# To train the model:
-history = parallel_model.fit_generator(
-    train_gen,
-    steps_per_epoch=(num_train_images // batch_size)+1,
-    epochs=num_epoch,
-    validation_data=val_gen,
-    validation_steps=(num_val_images // batch_size)+1,
-    max_queue_size=100,
-    workers=8,
-    callbacks=callback_list,
-#    initial_epoch=3
-    )
-
-#visual_result(history)
+np.save(utils_dir+'bottleneck_features_validation.npy', bottleneck_features_val)

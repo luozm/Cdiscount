@@ -43,7 +43,7 @@ def branch(input, num_filters, num_output, name, actvation='relu'):
 
 
 # Xception model
-def xception(num_dense, use_pretrain=True, trainable_layers=126, use_darc1=False):
+def xception(num_dense, use_pretrain=True, trainable_layers=126, use_darc1=False, as_extractor=False):
     if not use_pretrain:
         model = Xception(include_top=True, weights=None, input_shape=(180, 180, 3), classes=num_classes)
     else:
@@ -51,6 +51,12 @@ def xception(num_dense, use_pretrain=True, trainable_layers=126, use_darc1=False
         # add a global spatial average pooling layer
         x = base_model.output
         x = GlobalAveragePooling2D()(x)
+
+        # Extract bottleneck features
+        if as_extractor:
+            extractor = Model(inputs=base_model.input, outputs=x)
+            return extractor
+
         # add a fully connected layer to reduce the parameters between last 2 layers
         x = Dense(num_dense)(x)
         x = BatchNormalization()(x)
