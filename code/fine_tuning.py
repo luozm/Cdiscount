@@ -32,18 +32,21 @@ from keras.models import Model, Sequential
 
 # Load bottleneck features
 #train_data = np.load(open('bottleneck_features_train.npy'))
-train_data = np.zeros((10000,2048))
+train_data = np.zeros((11139926,1))
 #val_data = np.load(open('bottleneck_features_val.npy'))
-val_data = np.zeros((5000,2048))
+val_data = np.zeros((1231367,1))
 
 # Load labels
-train_label = np.zeros((10000,1))#(len(batch_x), self.__num_label), dtype=K.floatx())
+train_image_table = pd.read_csv(utils.utils_dir + "train_images.csv", index_col=0)
+train_label = np.array(train_image_table)[:,1]
 #train_label_level1 = np.zeros((len(batch_x), self.__num_label_level1), dtype=K.floatx())
 #train_label_level2 = np.zeros((len(batch_x), self.__num_label_level2), dtype=K.floatx())
 
-val_label = np.zeros((5000,1))#(len(batch_x), self.__num_label), dtype=K.floatx())
+val_image_table = pd.read_csv(utils.utils_dir + "val_images.csv", index_col=0)
+val_label = np.array(val_image_table)[:,1]
 #val_label_level1 = np.zeros((len(batch_x), self.__num_label_level1), dtype=K.floatx())
 #val_label_level2 = np.zeros((len(batch_x), self.__num_label_level2), dtype=K.floatx())
+
 
 def model(shape,num_classes):#, num_filters):
     #base_model = Xception(include_top=False, weights=None, input_shape=(180,180,3),classes=num_classes[2])
