@@ -7,47 +7,132 @@ import os
 import io
 import numpy as np
 import pandas as pd
-import bson
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 
 import tensorflow as tf
 import keras
 from keras.utils.training_utils import multi_gpu_model
-from keras.preprocessing.image import load_img, img_to_array
-from keras.preprocessing.image import Iterator
-from keras.preprocessing.image import ImageDataGenerator
 from keras import backend as K
+from keras.utils import to_categorical
 from keras.optimizers import Adam, SGD, Adamax
-from keras.callbacks import ReduceLROnPlateau, LearningRateScheduler
+from keras.layers import Lambda, BatchNormalization, Dense, Activation, Input
+from keras.callbacks import ReduceLROnPlateau, LearningRateScheduler, TensorBoard, ModelCheckpoint
 
 # custom callbacks, not the original keras one
-from utils.callbacks import TensorBoard, SnapshotModelCheckpoint, ModelCheckpoint
+from utils.callbacks import SnapshotModelCheckpoint
 import utils.utils as utils
-from model import *
 
+from model import *
+from keras.models import Model
+
+data_dir = utils.data_dir
+utils_dir = utils.utils_dir
+log_dir = utils.log_dir
+model_dir = utils.model_dir
+
+train_image_table = pd.read_csv(utils.utils_dir + "train_images.csv", index_col=0)
+val_image_table = pd.read_csv(utils.utils_dir + "val_images.csv", index_col=0)
+
+num_train_images = len(train_image_table)
+num_val_images = len(val_image_table)
+num_classes = [utils.num_classes, utils.num_class_level_one, utils.num_class_level_two]
+initial_learning_rate = 0.001
+batch_size = 256
+num_epoch = 100
+num_final_dense_layer = 128
+model_prefix = 'Xception-pretrained-%d' % num_final_dense_layer
 
 # Load bottleneck features
-train_data = np.load(open('bottleneck_features_train.npy'))
-val_data = np.load(open('bottleneck_features_val.npy'))
+"""
+train_data_temp = [[] for _ in range(5)]
+for i in range(5):
+    train_data_temp[i] = np.load(utils_dir+'bottleneck_features_train_%d.npy' % (i+1))
+train_data = np.concatenate((train_data_temp[0],
+                             train_data_temp[1],
+                             train_data_temp[2],
+                             train_data_temp[3],
+                             train_data_temp[4]), axis=0)
+"""
+
+train_data = np.zeros((num_train_images, 2048))
+#val_data = np.load(utils_dir+'bottleneck_features_val.npy')
+val_data = np.zeros((num_val_images, 2048))
 
 # Load labels
-train_label = np.zeros((len(batch_x), self.__num_label), dtype=K.floatx())
-train_label_level1 = np.zeros((len(batch_x), self.__num_label_level1), dtype=K.floatx())
-train_label_level2 = np.zeros((len(batch_x), self.__num_label_level2), dtype=K.floatx())
-
-val_label = np.zeros((len(batch_x), self.__num_label), dtype=K.floatx())
-val_label_level1 = np.zeros((len(batch_x), self.__num_label_level1), dtype=K.floatx())
-val_label_level2 = np.zeros((len(batch_x), self.__num_label_level2), dtype=K.floatx())
+train_label = np.array(train_image_table)[:, 1]
+train_label = to_categorical(train_label, num_classes=num_classes[0])
+val_label = np.array(val_image_table)[:, 1]
+val_label = to_categorical(val_label, num_classes=num_classes[0])
 
 
+def model_last_block(input_shape, num_dense, use_darc1=False):#, num_filters):
+    #base_model = Xception(include_top=False, weights=None, input_shape=(180,180,3),classes=num_classes[2])
+    #output = []
+    #input = model.input
+    """
+    for i in range(2):
+    b = SeparableConv2D(num_filters, (3,3), padding='same', use_bias=False, name='b'+str(i+1)+'_sepconv1')(input)
+    b = BatchNormalization(name='b'+str(i+1)+'sepconv1_bn')(b)
+    b = Activation(actvation, name='b'+str(i+1)+'sepconv1_act')(b)
+    b = SeparableConv2D(num_filters, (3,3), padding='same', use_bias=False, name='b'+str(i+1)+'_sepconv2')(b)
+    b = BatchNormalization(name='b'+str(i+1)+'sepconv2_bn')(b)
+    b = Activation(actvation, name='b'+str(i+1)+'sepconv2_act')(b)
+    output.append(Dense(num_classes[i], name='b'+str(i+1))(b))
+    """
+    #x = Dense(128,input_shape=train_data.shape[1:])(input)
+    #x = BatchNormalization()(x)
+    #x = Activation("relu")(x)
+    #output.append(Dense(num_classes[2], name="out")(x))
+    #output = Dense(num_classes[2], name="out")(x)
+    #model = Model(inputs=base_model.input, outputs=[output[0], output[1], output[2]])
+    #model = Model(inputs=model.input, outputs=output)
+
+    inputs = Input(shape=(input_shape,))
+    x = Dense(num_dense)(inputs)
+    x = BatchNormalization()(x)
+    x = Activation("relu")(x)
+    # add a output layer
+    if use_darc1:
+        output = Dense(num_classes[0])(x)
+    else:
+        output = Dense(num_classes[0], activation='softmax')(x)
+    # this is the model we will train
+    model = Model(inputs=inputs, outputs=output)
+    return model
 
 
-# Last several layers to be fune-tuned
-model = Sequential()
-model.add(Flatten(input_shape=train_data.shape[1:]))
-model.add(Dense(256, activation='relu'))
-model.add(Dropout(0.5))
-model.add(Dense(1, activation='sigmoid'))
+model = model_last_block(2048, num_final_dense_layer, False)
 
+adam = Adam(lr=initial_learning_rate, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+
+model.compile(optimizer=adam,
+#              loss=DARC1,
+              loss='categorical_crossentropy',
+              #loss_weight=[lw1, lw2, lw3],
+              metrics=["accuracy"],
+              )
+
+# Reduce learning rate when loss has stopped improving
+reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=5)
+
+# Visualization when training
+tensorboard = TensorBoard(
+    log_dir=log_dir+"/add_fc/%d" % num_final_dense_layer,
+    histogram_freq=0,
+    batch_size=batch_size,
+    write_graph=True,
+    write_images=False)
+
+ModelCheckpoint(
+    model_dir + "%s-{epoch:02d}-{val_acc:.3f}.h5" % model_prefix,
+    monitor="val_acc",
+    save_best_only=True,
+    save_weights_only=True,
+)
+
+model.fit(train_data, train_label,
+          epochs=num_epoch,
+          batch_size=batch_size,
+          validation_data=(val_data, val_label),
+          shuffle=True,
+          callbacks=[tensorboard, reduce_lr]
+          )

@@ -66,7 +66,7 @@ class BSONIterator(Iterator):
         super(BSONIterator, self).__init__(self.__num_images, batch_size, shuffle, seed)
 
         # Print out information
-        print("Found %d images belonging to %d classes." % (self.__num_images, self.__num_label))
+        print("Found %d images." % self.__num_images)
 
     def _get_batches_of_transformed_samples(self, index_array):
         """
@@ -156,7 +156,7 @@ class PickleGenerator(Iterator):
         # pass arguments to super class
         super(PickleGenerator, self).__init__(self.__num_images, batch_size, shuffle, seed)
         # Print out information
-        print("Found %d images belonging to %d classes." % (self.__num_images, self.__num_label))
+        print("Found %d images." % self.__num_images)
 
     def next(self):
         index_array = next(self.index_generator)
@@ -214,7 +214,8 @@ train_product_table = pd.read_csv(utils_dir + "train_offsets.csv", index_col=0)
 train_image_table = pd.read_csv(utils_dir + "train_images.csv", index_col=0)
 pickle_file = pd.read_pickle(utils_dir + "val_dataset.pkl")
 
-num_train_images = len(train_image_table)
+#num_train_images = len(train_image_table)
+num_train_images = 10000
 num_val_images = len(pickle_file)
 train_bson_file = open(train_bson_path, "rb")
 
@@ -261,7 +262,15 @@ bottleneck_features_train = parallel_model.predict_generator(
     verbose=1
 )
 
-np.save(utils_dir+'bottleneck_features_train.npy', bottleneck_features_train)
+# Split array into 5 files
+num_slice = num_train_images // 5
+for i in range(4):
+    idx = slice(i*num_slice, (i+1)*num_slice)
+    np.save(utils_dir+'bottleneck_features_train_%d.npy' % (i+1), bottleneck_features_train[idx, :])
+# Last array file
+idx = 4*num_slice
+np.save(utils_dir+'bottleneck_features_train_5.npy', bottleneck_features_train[idx:, :])
+print("Successfully save bottleneck_features_train")
 
 bottleneck_features_val = parallel_model.predict_generator(
     val_gen,
@@ -270,4 +279,5 @@ bottleneck_features_val = parallel_model.predict_generator(
     verbose=1
 )
 
-np.save(utils_dir+'bottleneck_features_validation.npy', bottleneck_features_val)
+np.save(utils_dir+'bottleneck_features_val.npy', bottleneck_features_val)
+print("Successfully save bottleneck_features_val")
