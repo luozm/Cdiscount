@@ -36,32 +36,22 @@ num_train_images = len(train_image_table)
 num_val_images = len(val_image_table)
 num_classes = [utils.num_classes, utils.num_class_level_one, utils.num_class_level_two]
 initial_learning_rate = 0.001
-batch_size = 256
+batch_size = 2560
 num_epoch = 100
 num_final_dense_layer = 128
 model_prefix = 'Xception-pretrained-%d' % num_final_dense_layer
 
 # Load bottleneck features
-"""
-train_data_temp = [[] for _ in range(5)]
-for i in range(5):
-    train_data_temp[i] = np.load(utils_dir+'bottleneck_features_train_%d.npy' % (i+1))
-train_data = np.concatenate((train_data_temp[0],
-                             train_data_temp[1],
-                             train_data_temp[2],
-                             train_data_temp[3],
-                             train_data_temp[4]), axis=0)
-"""
-
 train_data = np.zeros((num_train_images, 2048))
+#train_data = np.load(utils_dir+'bottleneck_features_train.npy')
 #val_data = np.load(utils_dir+'bottleneck_features_val.npy')
 val_data = np.zeros((num_val_images, 2048))
 
 # Load labels
 train_label = np.array(train_image_table)[:, 1]
-train_label = to_categorical(train_label, num_classes=num_classes[0])
+#train_label = to_categorical(train_label, num_classes=num_classes[0])
 val_label = np.array(val_image_table)[:, 1]
-val_label = to_categorical(val_label, num_classes=num_classes[0])
+#val_label = to_categorical(val_label, num_classes=num_classes[0])
 
 
 def model_last_block(input_shape, num_dense, use_darc1=False):#, num_filters):
@@ -106,7 +96,7 @@ adam = Adam(lr=initial_learning_rate, beta_1=0.9, beta_2=0.999, epsilon=1e-08, d
 
 model.compile(optimizer=adam,
 #              loss=DARC1,
-              loss='categorical_crossentropy',
+              loss='sparse_categorical_crossentropy',
               #loss_weight=[lw1, lw2, lw3],
               metrics=["accuracy"],
               )

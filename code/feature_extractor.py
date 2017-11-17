@@ -262,14 +262,7 @@ bottleneck_features_train = parallel_model.predict_generator(
     verbose=1
 )
 
-# Split array into 5 files
-num_slice = num_train_images // 5
-for i in range(4):
-    idx = slice(i*num_slice, (i+1)*num_slice)
-    np.save(utils_dir+'bottleneck_features_train_%d.npy' % (i+1), bottleneck_features_train[idx, :])
-# Last array file
-idx = 4*num_slice
-np.save(utils_dir+'bottleneck_features_train_5.npy', bottleneck_features_train[idx:, :])
+np.save(utils_dir+'bottleneck_features_train.npy', bottleneck_features_train)
 print("Successfully save bottleneck_features_train")
 
 bottleneck_features_val = parallel_model.predict_generator(
