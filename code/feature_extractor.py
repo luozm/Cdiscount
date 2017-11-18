@@ -214,8 +214,7 @@ train_product_table = pd.read_csv(utils_dir + "train_offsets.csv", index_col=0)
 train_image_table = pd.read_csv(utils_dir + "train_images.csv", index_col=0)
 pickle_file = pd.read_pickle(utils_dir + "val_dataset.pkl")
 
-#num_train_images = len(train_image_table)
-num_train_images = 10000
+num_train_images = len(train_image_table)
 num_val_images = len(pickle_file)
 train_bson_file = open(train_bson_path, "rb")
 
@@ -253,7 +252,7 @@ with tf.device("/cpu:0"):
 # make the model parallel
 parallel_model = multi_gpu_model(model, gpus=num_gpus)
 
-model.summary()
+#model.summary()
 
 bottleneck_features_train = parallel_model.predict_generator(
     train_gen,
@@ -261,10 +260,10 @@ bottleneck_features_train = parallel_model.predict_generator(
     workers=4,
     verbose=1
 )
-
+print(2)
 np.save(utils_dir+'bottleneck_features_train.npy', bottleneck_features_train)
 print("Successfully save bottleneck_features_train")
-
+"""
 bottleneck_features_val = parallel_model.predict_generator(
     val_gen,
     steps=(num_val_images // batch_size)+1,
@@ -274,3 +273,4 @@ bottleneck_features_val = parallel_model.predict_generator(
 
 np.save(utils_dir+'bottleneck_features_val.npy', bottleneck_features_val)
 print("Successfully save bottleneck_features_val")
+"""

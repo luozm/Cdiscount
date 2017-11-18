@@ -12,7 +12,6 @@ import tensorflow as tf
 import keras
 from keras.utils.training_utils import multi_gpu_model
 from keras import backend as K
-from keras.utils import to_categorical
 from keras.optimizers import Adam, SGD, Adamax
 from keras.layers import Lambda, BatchNormalization, Dense, Activation, Input
 from keras.callbacks import ReduceLROnPlateau, LearningRateScheduler, TensorBoard, ModelCheckpoint
@@ -42,16 +41,14 @@ num_final_dense_layer = 128
 model_prefix = 'Xception-pretrained-%d' % num_final_dense_layer
 
 # Load bottleneck features
-train_data = np.zeros((num_train_images, 2048))
-#train_data = np.load(utils_dir+'bottleneck_features_train.npy')
-#val_data = np.load(utils_dir+'bottleneck_features_val.npy')
-val_data = np.zeros((num_val_images, 2048))
+#train_data = np.zeros((num_train_images, 2048))
+#val_data = np.zeros((num_val_images, 2048))
+train_data = np.load(utils_dir+'bottleneck_features_train.npy')
+val_data = np.load(utils_dir+'bottleneck_features_val.npy')
 
 # Load labels
 train_label = np.array(train_image_table)[:, 1]
-#train_label = to_categorical(train_label, num_classes=num_classes[0])
 val_label = np.array(val_image_table)[:, 1]
-#val_label = to_categorical(val_label, num_classes=num_classes[0])
 
 
 def model_last_block(input_shape, num_dense, use_darc1=False):#, num_filters):
@@ -102,7 +99,7 @@ model.compile(optimizer=adam,
               )
 
 # Reduce learning rate when loss has stopped improving
-reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=5)
+reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=2)
 
 # Visualization when training
 tensorboard = TensorBoard(
