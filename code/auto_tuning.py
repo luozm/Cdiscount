@@ -14,8 +14,6 @@ import utils.utils as utils
 from model import *
 from keras.models import Model
 
-import json
-
 from hyperopt import Trials, STATUS_OK, tpe
 from hyperas import optim
 from hyperas.distributions import choice, uniform, conditional
@@ -30,7 +28,7 @@ def data():
     val_image_table = pd.read_csv(utils.utils_dir + "val_images.csv", index_col=0)
 
     num_classes = [utils.num_classes, utils.num_class_level_one, utils.num_class_level_two]
-    num_epoch = 100
+    num_epoch = 50
     num_final_dense_layer = 128
     model_prefix = 'Xception-pretrained-%d' % num_final_dense_layer
 
@@ -47,7 +45,7 @@ def data():
         save_weights_only=True,
     )
 
-    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=2)
+    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=1)
 
     arguments = {
         'input_shape': 2048,
@@ -60,9 +58,9 @@ def data():
 
     }
 
-    hyperpara = utils.get_hyper_parameter('xception')
+    hyper_param = utils.get_hyper_parameter('xception')
 
-    return train_data, train_label, val_data, val_label, arguments, hyperpara
+    return train_data, train_label, val_data, val_label, arguments, hyper_param
 
 
 def create_model(train_data, train_label, val_data, val_label, arguments, hyperpara):

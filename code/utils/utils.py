@@ -91,4 +91,8 @@ def get_hyper_parameter(type):
     json_pointer = open(json_file, "r")
 
     hyper_parameter = json.load(json_pointer)
+<<<<<<< HEAD
     return hyper_parameter
+=======
+    return hyper_parameter
+>>>>>>> origin/multi-gpu

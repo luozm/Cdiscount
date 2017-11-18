@@ -1,0 +1,33 @@
+{
+    "model" : {
+        "name" : "xception",
+        "final_dense_layer" : [128, 190],
+        "branch" : true,
+        "loss_weight" : [0.1, 0.1, 0.8]
+    },
+
+    "optimizer": 
+    {
+        "adam": 
+        {
+            "lose_function" : "cross_entropy",
+            "initial_learnig_rate" : 0.001,
+            "momentum" : 0.9,
+            "decay_rule" : "exp",
+            "decay_value" : 0.1
+        },
+
+        "sgd" : {
+            "lose_function" : "cross_entropy",
+            "initial_learnig_rate" : 0.001,
+            "momentum" : 0.9,
+            "decay_rule" : "exp",
+            "decay_value" : 0.1
+        }
+    },
+
+    "batch_size" : 64,
+    "epoch_num" : 10,
+    "snapshot" : true,
+    "snapshot_number" : 5
+}
