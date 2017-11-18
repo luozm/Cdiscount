@@ -1,6 +1,7 @@
 """
 Initial parameters, and common functions
 """
+import json
 
 # Relative path of directories
 data_dir = "../data/input/"
@@ -8,6 +9,7 @@ utils_dir = "../data/utils/"
 log_dir = "../data/logs/"
 model_dir = "../data/weights/"
 result_dir = "../data/results/"
+parameter_dir = "./parameters/"
 
 # Initial parameters for training
 num_train_products = 7069896
@@ -82,3 +84,11 @@ def make_category_table_level2(category_level2_table, category_table):
         category_idx = category_name2label_level2[item[2]]
         category_id2label_level2[category_id] = category_idx
     return category_id2label_level2
+
+
+def get_hyper_parameter(type):
+    json_file = parameter_dir + type + r".json"
+    json_pointer = open(json_file, "r")
+
+    hyper_parameter = json.load(json_pointer)
+    return hyper_parameter
