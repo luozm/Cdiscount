@@ -86,13 +86,11 @@ def make_category_table_level2(category_level2_table, category_table):
     return category_id2label_level2
 
 
-def get_hyper_parameter(type):
-    json_file = parameter_dir + type + r".json"
+def get_hyper_parameter(model_name):
+    json_file = parameter_dir + model_name + r".json"
     json_pointer = open(json_file, "r")
 
     hyper_parameter = json.load(json_pointer)
-<<<<<<< HEAD
+
     return hyper_parameter
-=======
-    return hyper_parameter
->>>>>>> origin/multi-gpu
+
