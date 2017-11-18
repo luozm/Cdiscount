@@ -33,9 +33,11 @@ val_image_table = pd.read_csv(utils.utils_dir + "val_images.csv", index_col=0)
 
 num_train_images = len(train_image_table)
 num_val_images = len(val_image_table)
+print(num_train_images)
+print(num_val_images)
 num_classes = [utils.num_classes, utils.num_class_level_one, utils.num_class_level_two]
 initial_learning_rate = 0.001
-batch_size = 2560
+batch_size = 1024
 num_epoch = 100
 num_final_dense_layer = 128
 model_prefix = 'Xception-pretrained-%d' % num_final_dense_layer
@@ -45,10 +47,12 @@ model_prefix = 'Xception-pretrained-%d' % num_final_dense_layer
 #val_data = np.zeros((num_val_images, 2048))
 train_data = np.load(utils_dir+'bottleneck_features_train.npy')
 val_data = np.load(utils_dir+'bottleneck_features_val.npy')
+print("Load data.")
 
 # Load labels
 train_label = np.array(train_image_table)[:, 1]
 val_label = np.array(val_image_table)[:, 1]
+print("Load label.")
 
 
 def model_last_block(input_shape, num_dense, use_darc1=False):#, num_filters):
@@ -121,5 +125,7 @@ model.fit(train_data, train_label,
           batch_size=batch_size,
           validation_data=(val_data, val_label),
           shuffle=True,
-          callbacks=[tensorboard, reduce_lr]
+          callbacks=[
+#              tensorboard,
+              reduce_lr]
           )

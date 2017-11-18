@@ -260,10 +260,10 @@ bottleneck_features_train = parallel_model.predict_generator(
     workers=4,
     verbose=1
 )
-print(2)
+
 np.save(utils_dir+'bottleneck_features_train.npy', bottleneck_features_train)
 print("Successfully save bottleneck_features_train")
-"""
+
 bottleneck_features_val = parallel_model.predict_generator(
     val_gen,
     steps=(num_val_images // batch_size)+1,
@@ -273,4 +273,3 @@ bottleneck_features_val = parallel_model.predict_generator(
 
 np.save(utils_dir+'bottleneck_features_val.npy', bottleneck_features_val)
 print("Successfully save bottleneck_features_val")
-"""
