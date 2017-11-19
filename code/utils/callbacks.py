@@ -143,7 +143,7 @@ class Callback(object):
     # Properties
         params: dict. Training parameters
             (eg. verbosity, batch size, number of epochs...).
-        model: instance of `keras.models.Model`.
+        model: instance of `keras.models.model`.
             Reference of the model being trained.
 
     The `logs` dictionary that callback methods
@@ -702,7 +702,7 @@ class SnapshotModelCheckpoint(Callback):
         fn_prefix: prefix for the filename of the weights.
     """
 
-    def __init__(self, nb_epochs, nb_snapshots, base_model=None, fn_prefix='Model'):
+    def __init__(self, nb_epochs, nb_snapshots, base_model=None, fn_prefix='model'):
         super(SnapshotModelCheckpoint, self).__init__()
         self.check = nb_epochs // nb_snapshots
         self.fn_prefix = fn_prefix
@@ -745,7 +745,7 @@ class SnapshotCallbackBuilder:
         self.M = nb_snapshots
         self.alpha_zero = init_lr
 
-    def get_callbacks(self, model_prefix='Model'):
+    def get_callbacks(self, model_prefix='model'):
         """
         Creates a list of callbacks that can be used during training to create a
         snapshot ensemble of the model.

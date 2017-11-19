@@ -91,7 +91,7 @@ def make_category_table_level2(category_level2_table, category_table):
         category_id2label_level2[category_id] = category_idx
     return category_id2label_level2
 
-
+# Get hyper parameters by reading json file
 def get_hyper_parameter(model_name):
     json_file = parameter_dir + model_name + r".json"
     json_pointer = open(json_file, "r")

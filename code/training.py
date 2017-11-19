@@ -65,6 +65,7 @@ class BSONIterator(Iterator):
         self.__image_size = tuple(image_size)
         self.__image_shape = self.__image_size + (3,)
         self.__use_hierarchical_label = use_hierarchical_label
+
         # Pass parameter back to super class
         super(BSONIterator, self).__init__(self.__num_images, batch_size, shuffle, seed)
 
@@ -73,8 +74,8 @@ class BSONIterator(Iterator):
 
     def _get_batches_of_transformed_samples(self, index_array):
         """
-        :param index_array:
-        :return: The batch of samples(pair of image and label)
+        :param index_array: Array that determine indexes of samples
+        :return: The batch of samples(pairs of image and label)
         """
         batch_x = np.zeros((len(index_array),) + self.__image_shape, dtype=K.floatx())
         if self.__labelled:
