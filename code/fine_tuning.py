@@ -37,11 +37,9 @@ val_image_table = pd.read_csv(utils.utils_dir + "val_images.csv", index_col=0)
 
 num_classes = [utils.num_classes, utils.num_class_level_one, utils.num_class_level_two]
 
-decay_value = 0.1
-decay_epoch = 2
-num_epoch = 5
-#num_final_dense_layer = 128
-#model_prefix = 'Xception-pretrained-%d' % num_final_dense_layer
+decay_value = 0.2
+decay_epoch = 5
+num_epoch = 25
 
 # Load bottleneck features
 train_data = np.load(utils_dir+'bottleneck_features_train.npy')
@@ -50,13 +48,6 @@ val_data = np.load(utils_dir+'bottleneck_features_val.npy')
 # Load labels
 train_label = np.array(train_image_table)[:, 1]
 val_label = np.array(val_image_table)[:, 1]
-
-"""
-# learning rate schedule (exponential decay)
-def exp_decay(t):
-    lrate = initial_learning_rate * math.pow(decay_value, math.floor((1+t)/decay_epoch))
-    return lrate
-"""
 
 
 def model_last_block(input_shape, num_dense, use_darc1=False):
@@ -95,36 +86,20 @@ def model_last_block(input_shape, num_dense, use_darc1=False):
     return model
 
 
-"""
-# Visualization when training
-tensorboard = TensorBoard(
-    log_dir=log_dir+"/add_fc/%d" % num_final_dense_layer,
-    histogram_freq=0,
-    batch_size=batch_size,
-    write_graph=True,
-    write_images=False)
-
-ModelCheckpoint(
-    model_dir + "%s-{epoch:02d}-{val_acc:.3f}.h5" % model_prefix,
-    monitor="val_acc",
-    save_best_only=True,
-    save_weights_only=True,
-)
-"""
-
-
+# Random search for hyperparameter optimization
 def train_random_search(max_val=10):
     result_list = []
 
     for i in range(max_val):
         # Params to be validated
-        initial_learning_rate = 10**random.uniform(-2, -5)
+        initial_learning_rate = 10**random.uniform(-2, -4)
 #        initial_learning_rate = 0.003
-        momentum = 1-10**random.uniform(0, -4)
-#        momentum = 0.99
+#        momentum = 1-10**random.uniform(0, -4)
+        momentum = 0.99
 #        batch_size = random.choice([64, 256, 1024])
         batch_size = 512
-        num_final_dense_layer = random.choice([32, 128, 512, 2048])
+#        num_final_dense_layer = random.choice([32, 128, 512, 2048])
+        num_final_dense_layer = 2048
 
         model = model_last_block(2048, num_final_dense_layer, False)
         adam = Adam(lr=initial_learning_rate)
@@ -138,27 +113,30 @@ def train_random_search(max_val=10):
             metrics=["accuracy"],
         )
 
+        # learning rate schedule (exponential decay)
+        def exp_decay(t):
+            lrate = initial_learning_rate * math.pow(decay_value, math.floor((1 + t) / decay_epoch))
+            return lrate
+
         # Learning rate scheduler
-    #    lr_scheduler = LearningRateScheduler(exp_decay)
+#        lr_scheduler = LearningRateScheduler(exp_decay)
 
         model.fit(
-            train_data[:50000,:],
-            train_label[:50000],
-#            train_data,
-#            train_label,
+            train_data[:500000,:],
+            train_label[:500000],
             epochs=num_epoch,
             batch_size=batch_size,
             shuffle=True,
 #            verbose=0,
-    #        callbacks=[lr_scheduler]
+#            callbacks=[lr_scheduler]
         )
 
         _, acc = model.evaluate(
-            train_data[:50000,:],
-            train_label[:50000],
+            train_data[:500000,:],
+            train_label[:500000],
 #            val_data,
 #            val_label,
-            batch_size=4096,
+            batch_size=2048,
             verbose=0)
 
         result_row = {
@@ -172,7 +150,65 @@ def train_random_search(max_val=10):
         print(result_row)
 
     result_df = pd.DataFrame(result_list)
-    result_df.to_csv(utils.result_dir + "fine_tuning_result_adam.csv")
+    result_df.to_csv(utils.result_dir + "fine_tuning_result_adam_2048.csv")
 
 
-train_random_search(100)
+# Real train for fine tuning
+def train_fine_tuning():
+    # Params to be validated
+    initial_learning_rate = 0.003
+    batch_size = 512
+    num_final_dense_layer = 2048
+    model_prefix = 'Xception-last-layer-%d' % num_final_dense_layer
+
+    model = model_last_block(2048, num_final_dense_layer, False)
+    adam = Adam(lr=initial_learning_rate)
+    #        sgd = SGD(lr=initial_learning_rate, momentum=momentum)
+
+    model.compile(
+        optimizer=adam,
+        #    loss=DARC1,
+        loss='sparse_categorical_crossentropy',
+        metrics=["accuracy"],
+    )
+
+    # learning rate schedule (exponential decay)
+    def exp_decay(t):
+        lrate = initial_learning_rate * math.pow(decay_value, math.floor((1 + t) / decay_epoch))
+        return lrate
+
+    # Learning rate scheduler
+    lr_scheduler = LearningRateScheduler(exp_decay)
+
+    # Visualization when training
+    tensorboard = TensorBoard(
+        log_dir=log_dir + "/add_fc/%d" % num_final_dense_layer,
+        histogram_freq=0,
+        batch_size=batch_size,
+        write_graph=True,
+        write_images=False)
+
+    """
+    ModelCheckpoint(
+        model_dir + "%s-{epoch:02d}-{val_acc:.3f}.h5" % model_prefix,
+        monitor="val_acc",
+        save_best_only=True,
+        save_weights_only=True,
+    )
+    """
+
+    history = model.fit(
+        train_data,
+        train_label,
+        epochs=num_epoch,
+        batch_size=batch_size,
+        shuffle=True,
+        validation_data=(val_data, val_label),
+        callbacks=[lr_scheduler, tensorboard]
+    )
+    model.save_weights(model_dir+'%s-%d-%.3f.h5' % (model_prefix, num_epoch, history.history['val_acc'][-1]))
+
+
+#train_random_search(10)
+
+train_fine_tuning()
