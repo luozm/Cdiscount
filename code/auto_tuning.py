@@ -54,10 +54,10 @@ def data():
 
 
 def create_model(train_data, train_label, val_data, val_label, reduce_lr, num_classes):#arguments, hyper_param):
-    #inputs = Input(shape=(2048,))#arguments['input_shape'],))
-    #x = Dense({{choice([128, 1024])}})(input)#hyper_param['model']['final_dense_layer'])}})(inputs)
-    #x = BatchNormalization()(x)
-    #x = Activation("relu")(x)
+    inputs = Input(shape=(2048,))#arguments['input_shape'],))
+    x = Dense({{choice([128, 1024])}})(input)#hyper_param['model']['final_dense_layer'])}})(inputs)
+    x = BatchNormalization()(x)
+    x = Activation("relu")(x)
     # add a output layer
 #    if conditional({{choice([True, False])}}):
 #        output = Dense(arguments['num_classes'][0])(x)

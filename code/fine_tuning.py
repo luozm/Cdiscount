@@ -6,6 +6,7 @@ Zhimeng Luo
 import os
 import io
 import math
+import random
 import numpy as np
 import pandas as pd
 
@@ -13,7 +14,7 @@ import tensorflow as tf
 import keras
 from keras.utils.training_utils import multi_gpu_model
 from keras import backend as K
-from keras.optimizers import Adam, SGD, Adamax
+from keras.optimizers import Adam, SGD
 from keras.layers import Lambda, BatchNormalization, Dense, Activation, Input
 from keras.callbacks import ReduceLROnPlateau, LearningRateScheduler, TensorBoard, ModelCheckpoint
 
@@ -24,26 +25,23 @@ import utils.utils as utils
 from model import *
 from keras.models import Model
 
+
 data_dir = utils.data_dir
 utils_dir = utils.utils_dir
 log_dir = utils.log_dir
 model_dir = utils.model_dir
+result_dir = utils.result_dir
 
 train_image_table = pd.read_csv(utils.utils_dir + "train_images.csv", index_col=0)
 val_image_table = pd.read_csv(utils.utils_dir + "val_images.csv", index_col=0)
 
-num_train_images = len(train_image_table)
-num_val_images = len(val_image_table)
 num_classes = [utils.num_classes, utils.num_class_level_one, utils.num_class_level_two]
 
-initial_learning_rate = 0.001
-momentum = 0.9
 decay_value = 0.1
 decay_epoch = 2
-batch_size = 1024
-num_epoch = 50
-num_final_dense_layer = 128
-model_prefix = 'Xception-pretrained-%d' % num_final_dense_layer
+num_epoch = 5
+#num_final_dense_layer = 128
+#model_prefix = 'Xception-pretrained-%d' % num_final_dense_layer
 
 # Load bottleneck features
 train_data = np.load(utils_dir+'bottleneck_features_train.npy')
@@ -53,11 +51,12 @@ val_data = np.load(utils_dir+'bottleneck_features_val.npy')
 train_label = np.array(train_image_table)[:, 1]
 val_label = np.array(val_image_table)[:, 1]
 
-
+"""
 # learning rate schedule (exponential decay)
 def exp_decay(t):
     lrate = initial_learning_rate * math.pow(decay_value, math.floor((1+t)/decay_epoch))
     return lrate
+"""
 
 
 def model_last_block(input_shape, num_dense, use_darc1=False):
@@ -96,22 +95,7 @@ def model_last_block(input_shape, num_dense, use_darc1=False):
     return model
 
 
-model = model_last_block(2048, num_final_dense_layer, False)
-
-adam = Adam(lr=initial_learning_rate, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
-sgd = SGD(lr=initial_learning_rate, momentum=momentum)
-
-model.compile(
-    optimizer=sgd,
-#    loss=DARC1,
-    loss='sparse_categorical_crossentropy',
-#    loss_weight=[lw1, lw2, lw3],
-    metrics=["accuracy"],
-)
-
-# Learning rate schedual
-lr_scheduler = LearningRateScheduler(exp_decay)
-
+"""
 # Visualization when training
 tensorboard = TensorBoard(
     log_dir=log_dir+"/add_fc/%d" % num_final_dense_layer,
@@ -126,16 +110,56 @@ ModelCheckpoint(
     save_best_only=True,
     save_weights_only=True,
 )
+"""
 
-model.fit(
-    train_data,
-    train_label,
-    epochs=num_epoch,
-    batch_size=batch_size,
-    validation_data=(val_data, val_label),
-    shuffle=True,
-    callbacks=[
-        tensorboard,
-        lr_scheduler,
-    ]
-)
+
+def train_random_search(max_val=10):
+    result_list = []
+
+    for i in range(max_val):
+        # Params to be validated
+        initial_learning_rate = 10**random.uniform(-1, -6)
+        momentum = random.uniform(0.7, 1)
+        batch_size = random.choice([64, 256, 1024])
+        num_final_dense_layer = random.choice([64, 256, 1024])
+
+        model = model_last_block(2048, num_final_dense_layer, False)
+
+        sgd = SGD(lr=initial_learning_rate, momentum=momentum)
+
+        model.compile(
+            optimizer=sgd,
+            #    loss=DARC1,
+            loss='sparse_categorical_crossentropy',
+            #    loss_weight=[lw1, lw2, lw3],
+            metrics=["accuracy"],
+        )
+
+        # Learning rate schedual
+    #    lr_scheduler = LearningRateScheduler(exp_decay)
+
+        model.fit(
+            train_data[:500000,:],
+            train_label[:500000],
+            epochs=num_epoch,
+            batch_size=batch_size,
+            shuffle=True,
+    #        callbacks=[lr_scheduler]
+        )
+
+        _, acc = model.evaluate(
+            train_data[:500000,:],
+            train_label[:500000],
+            batch_size=8192,
+            verbose=0)
+
+        result_row = [i, acc, initial_learning_rate, momentum, num_final_dense_layer]
+        result_list.append(result_row)
+        print(result_row)
+
+    columns = ["idx", "train_acc", "lr", "momentum", "num_final_layer"]
+    result_df = pd.DataFrame(result_list, columns=columns)
+    result_df.to_csv(utils.result_dir + "fine_tuning_result.csv")
+
+
+train_random_search(100)
