@@ -223,7 +223,7 @@ batch_size = 256*num_gpus
 
 
 # Create a generator for training and a generator for validation.
-train_datagen = ImageDataGenerator(rescale=1./255)
+train_datagen = ImageDataGenerator(samplewise_center=True, rescale=1./255)
 train_gen = BSONIterator(train_bson_file,
                          train_image_table,
                          train_product_table,
@@ -233,7 +233,7 @@ train_gen = BSONIterator(train_bson_file,
                          labelled=False,
                          )
 
-val_datagen = ImageDataGenerator(rescale=1./255)
+val_datagen = ImageDataGenerator(samplewise_center=True, rescale=1./255)
 val_gen = PickleGenerator(None,
                           pickle_file,
                           val_datagen,

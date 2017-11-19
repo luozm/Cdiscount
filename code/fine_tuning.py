@@ -118,48 +118,61 @@ def train_random_search(max_val=10):
 
     for i in range(max_val):
         # Params to be validated
-        initial_learning_rate = 10**random.uniform(-1, -6)
-        momentum = random.uniform(0.7, 1)
-        batch_size = random.choice([64, 256, 1024])
-        num_final_dense_layer = random.choice([64, 256, 1024])
+        initial_learning_rate = 10**random.uniform(-2, -5)
+#        initial_learning_rate = 0.003
+        momentum = 1-10**random.uniform(0, -4)
+#        momentum = 0.99
+#        batch_size = random.choice([64, 256, 1024])
+        batch_size = 512
+        num_final_dense_layer = random.choice([32, 128, 512, 2048])
 
         model = model_last_block(2048, num_final_dense_layer, False)
-
-        sgd = SGD(lr=initial_learning_rate, momentum=momentum)
+        adam = Adam(lr=initial_learning_rate)
+#        sgd = SGD(lr=initial_learning_rate, momentum=momentum)
 
         model.compile(
-            optimizer=sgd,
+            optimizer=adam,
             #    loss=DARC1,
             loss='sparse_categorical_crossentropy',
             #    loss_weight=[lw1, lw2, lw3],
             metrics=["accuracy"],
         )
 
-        # Learning rate schedual
+        # Learning rate scheduler
     #    lr_scheduler = LearningRateScheduler(exp_decay)
 
         model.fit(
-            train_data[:500000,:],
-            train_label[:500000],
+            train_data[:50000,:],
+            train_label[:50000],
+#            train_data,
+#            train_label,
             epochs=num_epoch,
             batch_size=batch_size,
             shuffle=True,
+#            verbose=0,
     #        callbacks=[lr_scheduler]
         )
 
         _, acc = model.evaluate(
-            train_data[:500000,:],
-            train_label[:500000],
-            batch_size=8192,
+            train_data[:50000,:],
+            train_label[:50000],
+#            val_data,
+#            val_label,
+            batch_size=4096,
             verbose=0)
 
-        result_row = [i, acc, initial_learning_rate, momentum, num_final_dense_layer]
+        result_row = {
+            "idx": i+1,
+            "train_acc": acc,
+            "batch": batch_size,
+            "num_dense": num_final_dense_layer,
+            "lr": initial_learning_rate,
+            "mom": momentum}
         result_list.append(result_row)
         print(result_row)
 
-    columns = ["idx", "train_acc", "lr", "momentum", "num_final_layer"]
-    result_df = pd.DataFrame(result_list, columns=columns)
-    result_df.to_csv(utils.result_dir + "fine_tuning_result.csv")
+    result_df = pd.DataFrame(result_list)
+    result_df.to_csv(utils.result_dir + "fine_tuning_result_adam.csv")
 
 
 train_random_search(100)
