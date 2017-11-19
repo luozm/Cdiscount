@@ -3,6 +3,12 @@ Initial parameters, and common functions
 """
 import json
 
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
+
+
 # Relative path of directories
 data_dir = "../data/input/"
 utils_dir = "../data/utils/"
@@ -93,4 +99,66 @@ def get_hyper_parameter(model_name):
     hyper_parameter = json.load(json_pointer)
 
     return hyper_parameter
+
+"""
+# Show images after augmentation (use for debug)
+count = 0
+n = 4
+while count <= 15:
+    bx, by = next(train_gen)
+    if count % n == 0:
+        plt.figure(figsize=(14, 6))
+    plt.subplot(1, n, count % n + 1)
+    plt.imshow(bx[-1].astype(np.uint8))
+    plt.axis('off')
+    count += 1
+plt.show()
+"""
+
+# visualizing losses and accuracy, and real learning rate
+def visual_result(hist, lr=None):
+    train_loss = hist.history['loss']
+    val_loss = hist.history['val_loss']
+    train_acc = hist.history['acc']
+    val_acc = hist.history['val_acc']
+    xc = range(len(hist.history['loss']))
+
+    # Losses
+    plt.figure(1, figsize=(7, 5))
+    plt.plot(xc, train_loss)
+    plt.plot(xc, val_loss)
+    plt.xlabel('num of Epochs')
+    plt.ylabel('loss')
+    plt.title('train_loss vs val_loss')
+    plt.grid(True)
+    plt.legend(['train', 'val'])
+    # use bmh, classic,ggplot for big pictures
+    plt.style.available
+    plt.style.use(['classic'])
+    plt.savefig('loss.jpg')
+
+    # Accuracy
+    plt.figure(2, figsize=(7, 5))
+    plt.plot(xc, train_acc)
+    plt.plot(xc, val_acc)
+    plt.xlabel('num of Epochs')
+    plt.ylabel('accuracy')
+    plt.title('train_acc vs val_acc')
+    plt.grid(True)
+    plt.legend(['train', 'val'], loc=4)
+    # use bmh, classic,ggplot for big pictures
+    plt.style.available
+    plt.style.use(['classic'])
+    plt.savefig('acc.jpg')
+
+    # LearningRate
+    if lr is not None:
+        plt.figure(3, figsize=(7, 5))
+        plt.plot(xc, lr)
+        plt.xlabel('num of Epochs')
+        plt.ylabel('learning rate')
+        plt.title('Real Learning Rate')
+        plt.grid(True)
+        plt.legend(['lr'])
+        plt.savefig('lr.jpg')
 

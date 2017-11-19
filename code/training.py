@@ -8,8 +8,8 @@ import numpy as np
 import pandas as pd
 import bson
 import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
+
+
 
 import tensorflow as tf
 import keras
@@ -202,55 +202,6 @@ class PickleGenerator(Iterator):
         else:
             return batch_x
 
-
-# visualizing losses and accuracy, and real learning rate
-def visual_result(hist, lr=None):
-    train_loss = hist.history['loss']
-    val_loss = hist.history['val_loss']
-    train_acc = hist.history['acc']
-    val_acc = hist.history['val_acc']
-    xc = range(num_epoch)
-
-    # Losses
-    plt.figure(1, figsize=(7, 5))
-    plt.plot(xc, train_loss)
-    plt.plot(xc, val_loss)
-    plt.xlabel('num of Epochs')
-    plt.ylabel('loss')
-    plt.title('train_loss vs val_loss')
-    plt.grid(True)
-    plt.legend(['train', 'val'])
-    # use bmh, classic,ggplot for big pictures
-    plt.style.available
-    plt.style.use(['classic'])
-    plt.savefig('loss.jpg')
-
-    # Accuracy
-    plt.figure(2, figsize=(7, 5))
-    plt.plot(xc, train_acc)
-    plt.plot(xc, val_acc)
-    plt.xlabel('num of Epochs')
-    plt.ylabel('accuracy')
-    plt.title('train_acc vs val_acc')
-    plt.grid(True)
-    plt.legend(['train', 'val'], loc=4)
-    # use bmh, classic,ggplot for big pictures
-    plt.style.available
-    plt.style.use(['classic'])
-    plt.savefig('acc.jpg')
-
-    # LearningRate
-    if lr is not None:
-        plt.figure(3, figsize=(7, 5))
-        plt.plot(xc, lr)
-        plt.xlabel('num of Epochs')
-        plt.ylabel('learning rate')
-        plt.title('Real Learning Rate')
-        plt.grid(True)
-        plt.legend(['lr'])
-        plt.savefig('lr.jpg')
-
-
 # LearningRate Schedule for Snapshot Ensemble
 def _cosine_anneal_schedule(t):
     cos_inner = np.pi * (t % (num_epoch // num_snapshots))  # t - 1 is used when t has 1-based indexing.
@@ -318,20 +269,7 @@ val_gen = PickleGenerator(num_classes,
                           batch_size=batch_size,
                           )
 
-"""
-# Show images after augmentation (use for debug)
-count = 0
-n = 4
-while count <= 15:
-    bx, by = next(train_gen)
-    if count % n == 0:
-        plt.figure(figsize=(14, 6))
-    plt.subplot(1, n, count % n + 1)
-    plt.imshow(bx[-1].astype(np.uint8))
-    plt.axis('off')
-    count += 1
-plt.show()
-"""
+
 
 # ---------------------------------------------------------------------------------
 # Training on multi-GPU
@@ -380,6 +318,7 @@ tensorboard = TensorBoard(
 reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=1)
 
 # Build snapshot callbacks
+
 """
 snapshot = SnapshotModelCheckpoint(num_epoch, num_snapshots, model, fn_prefix=model_dir + "%s" % model_prefix)
 callback_list_snapshot = [
@@ -395,7 +334,6 @@ callback_list_snapshot = [
     tensorboard,
 ]
 """
-
 callback_list = [
     ModelCheckpoint(
         model_dir+"%s-{epoch:02d}-{val_acc:.3f}.h5" % model_prefix,
