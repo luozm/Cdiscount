@@ -627,7 +627,7 @@ class CyclicLR(Callback):
         self.step_size = step_size
         self.mode = mode
         self.gamma = gamma
-        if scale_fn == None:
+        if scale_fn is None:
             if self.mode == 'triangular':
                 self.scale_fn = lambda x: 1.
                 self.scale_mode = 'cycle'
@@ -635,7 +635,7 @@ class CyclicLR(Callback):
                 self.scale_fn = lambda x: 1 / (2. ** (x - 1))
                 self.scale_mode = 'cycle'
             elif self.mode == 'exp_range':
-                self.scale_fn = lambda x: gamma ** (x)
+                self.scale_fn = lambda x: gamma ** x
                 self.scale_mode = 'iterations'
         else:
             self.scale_fn = scale_fn
@@ -651,11 +651,11 @@ class CyclicLR(Callback):
         """Resets cycle iterations.
         Optional boundary/step size adjustment.
         """
-        if new_base_lr != None:
+        if new_base_lr is not None:
             self.base_lr = new_base_lr
-        if new_max_lr != None:
+        if new_max_lr is not None:
             self.max_lr = new_max_lr
-        if new_step_size != None:
+        if new_step_size is not None:
             self.step_size = new_step_size
         self.clr_iterations = 0.
 

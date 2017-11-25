@@ -9,20 +9,16 @@ import os
 import numpy as np
 import pandas as pd
 
-
 import tensorflow as tf
 from keras.utils.training_utils import multi_gpu_model
 from keras.preprocessing.image import ImageDataGenerator
 
-import utils.utils as utils
-from model import xception
+from utils import utils
+from model.xception import extractor_3outputs
 
-from Iterator.PickleGenerator import PickleGenerator
-from Iterator.BSONIterator import BSONIterator
+from utils.iterator import PickleIterator
+from utils.iterator import BSONIterator
 
-from model.xception import extractor
-
-model = extractor(126)
 
 # ---------------------------------------------------------------------------------
 # Initialization
@@ -57,12 +53,12 @@ train_gen = BSONIterator(train_bson_file,
                          )
 
 val_datagen = ImageDataGenerator(samplewise_center=True, rescale=1./255)
-val_gen = PickleGenerator(None,
-                          pickle_file,
-                          val_datagen,
-                          batch_size=batch_size,
-                          labelled=False,
-                          )
+val_gen = PickleIterator(None,
+                         pickle_file,
+                         val_datagen,
+                         batch_size=batch_size,
+                         labelled=False,
+                         )
 
 
 # ---------------------------------------------------------------------------------
@@ -70,7 +66,7 @@ val_gen = PickleGenerator(None,
 #
 
 with tf.device("/cpu:0"):
-    model = xception(None, trainable_layers=126, use_darc1=False, as_extractor=True)
+    model = extractor_3outputs(95, 115, 131)
 
 # make the model parallel
 parallel_model = multi_gpu_model(model, gpus=num_gpus)
@@ -83,7 +79,9 @@ bottleneck_features_train = parallel_model.predict_generator(
     verbose=1
 )
 
-np.save(utils_dir+'bottleneck_features_train.npy', bottleneck_features_train)
+np.save(utils_dir+'bottleneck_features_train_level1.npy', bottleneck_features_train[0])
+np.save(utils_dir+'bottleneck_features_train_level2.npy', bottleneck_features_train[1])
+np.save(utils_dir+'bottleneck_features_train_level3.npy', bottleneck_features_train[2])
 print("Successfully save bottleneck_features_train")
 
 bottleneck_features_val = parallel_model.predict_generator(
@@ -93,5 +91,7 @@ bottleneck_features_val = parallel_model.predict_generator(
     verbose=1
 )
 
-np.save(utils_dir+'bottleneck_features_val.npy', bottleneck_features_val)
+np.save(utils_dir+'bottleneck_features_val_level1.npy', bottleneck_features_val[0])
+np.save(utils_dir+'bottleneck_features_val_level2.npy', bottleneck_features_val[1])
+np.save(utils_dir+'bottleneck_features_val_level3.npy', bottleneck_features_val[2])
 print("Successfully save bottleneck_features_val")

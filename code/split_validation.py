@@ -1,5 +1,6 @@
 """
 From training bson file split a validation file
+
 """
 
 import os
@@ -7,7 +8,7 @@ from tqdm import *
 import bson
 import pandas as pd
 
-import utils.utils as utils
+from utils import utils
 
 
 # Input data files are available in the "../input/" directory.

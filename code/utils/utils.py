@@ -1,5 +1,6 @@
 """
 Initial parameters, and common functions
+
 """
 import json
 
@@ -8,6 +9,9 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 
+# ---------------------------------------------------------------------------------
+# Initial parameters
+#
 
 # Relative path of directories
 data_dir = "../data/input/"
@@ -25,13 +29,15 @@ num_class_level_one = 49
 num_class_level_two = 483
 
 
-# Create dictionaries for quick lookup of `category_id` to `category_idx` mapping.
 def make_category_tables(category_table):
-    """
+    """Mapping 'category id' to 'label id'
+
     This function maps the category id to label id
     Category id is a ten digits number, for example 1000005605
     Label id is a consecutive number from 0 to the number of labels - 1, e.g. 5269
+
     :param category_table:
+
     :return: Two dict maps category id to label id
     """
     category2label = {}
@@ -45,12 +51,15 @@ def make_category_tables(category_table):
 
 
 def make_category_table_level1(category_level1_table, category_table):
-    """
+    """Mapping 'category id' to 'level1 label id'
+
     This function maps the category id to level1 label id
     Category id is a ten digits number, for example 1000005605
     Level1 label id is a consecutive number from 0 to the number of level1 labels - 1, e.g. 48
+
     :param category_level1_table:
     :param category_table:
+
     :return: A dict maps category id to level1 label id
     """
     # Create a dict mapping 'category_level1_names' to 'category_level1_index'
@@ -69,12 +78,15 @@ def make_category_table_level1(category_level1_table, category_table):
 
 
 def make_category_table_level2(category_level2_table, category_table):
-    """
+    """Mapping 'category id' to 'level2 label id'
+
     This function maps the category id to level2 label id
     Category id is a ten digits number, for example 1000005605
     Level2 label id is a consecutive number from 0 to the number of level2 labels - 1, e.g. 482
+
     :param category_level2_table:
     :param category_table:
+
     :return: A dict maps category id to level2 label id
     """
     # Create a dict mapping 'category_level1_names' to 'category_level1_index'
@@ -91,8 +103,16 @@ def make_category_table_level2(category_level2_table, category_table):
         category_id2label_level2[category_id] = category_idx
     return category_id2label_level2
 
-# Get hyper parameters by reading json file
+
 def get_hyper_parameter(model_name):
+    """Get hyper-parameters from json
+
+    Get hyper parameters by reading json file.
+
+    :param model_name: model name
+
+    :return: hyper-parameters from json file.
+    """
     json_file = parameter_dir + model_name + r".json"
     json_pointer = open(json_file, "r")
 
@@ -100,23 +120,17 @@ def get_hyper_parameter(model_name):
 
     return hyper_parameter
 
-"""
-# Show images after augmentation (use for debug)
-count = 0
-n = 4
-while count <= 15:
-    bx, by = next(train_gen)
-    if count % n == 0:
-        plt.figure(figsize=(14, 6))
-    plt.subplot(1, n, count % n + 1)
-    plt.imshow(bx[-1].astype(np.uint8))
-    plt.axis('off')
-    count += 1
-plt.show()
-"""
 
-# visualizing losses and accuracy, and real learning rate
 def visual_result(hist, lr=None):
+    """Visualize training progress
+
+    Visualizing losses and accuracy, and real learning rate.
+
+    :param hist:
+    :param lr:
+
+    :return:
+    """
     train_loss = hist.history['loss']
     val_loss = hist.history['val_loss']
     train_acc = hist.history['acc']
@@ -161,4 +175,3 @@ def visual_result(hist, lr=None):
         plt.grid(True)
         plt.legend(['lr'])
         plt.savefig('lr.jpg')
-

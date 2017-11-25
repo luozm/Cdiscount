@@ -3,27 +3,22 @@ Fine-tuning last several layers for the model.
 
 Zhimeng Luo
 """
-import os
-import io
+
 import math
 import random
 import numpy as np
 import pandas as pd
 
-import tensorflow as tf
-import keras
 from keras.utils.training_utils import multi_gpu_model
-from keras import backend as K
 from keras.optimizers import Adam, SGD
-from keras.layers import Lambda, BatchNormalization, Dense, Activation, Input
 from keras.callbacks import ReduceLROnPlateau, LearningRateScheduler, TensorBoard, ModelCheckpoint
 
 # custom callbacks, not the original keras one
 from utils.callbacks import SnapshotModelCheckpoint
-import utils.utils as utils
-
-from model import *
-from keras.models import Model
+from utils import utils
+from model.xception import model_last_block, combine_model, combine_model_3branch
+from model.loss import sparse_darc1
+from model.lr_schedule import exp_decay_schedule
 
 
 data_dir = utils.data_dir
@@ -35,95 +30,103 @@ result_dir = utils.result_dir
 train_image_table = pd.read_csv(utils.utils_dir + "train_images.csv", index_col=0)
 val_image_table = pd.read_csv(utils.utils_dir + "val_images.csv", index_col=0)
 
-num_classes = [utils.num_classes, utils.num_class_level_one, utils.num_class_level_two]
-
-decay_value = 0.2
-decay_epoch = 5
-num_epoch = 25
-
-# Load bottleneck features
-train_data = np.load(utils_dir+'bottleneck_features_train.npy')
-val_data = np.load(utils_dir+'bottleneck_features_val.npy')
-
-# Load labels
-train_label = np.array(train_image_table)[:, 1]
-val_label = np.array(val_image_table)[:, 1]
+num_classes = [utils.num_class_level_one, utils.num_class_level_two, utils.num_classes]
 
 
-def model_last_block(input_shape, num_dense, use_darc1=False):
-    #base_model = Xception(include_top=False, weights=None, input_shape=(180,180,3),classes=num_classes[2])
-    #output = []
-    #input = model.input
+def load_bottleneck(level):
+    """Load bottleneck features and labels
+
+    :param level: which level you want to load, 1,2, or 3
+
+    :return: train_data, val_data, train_label, val_label
     """
-    for i in range(2):
-    b = SeparableConv2D(num_filters, (3,3), padding='same', use_bias=False, name='b'+str(i+1)+'_sepconv1')(input)
-    b = BatchNormalization(name='b'+str(i+1)+'sepconv1_bn')(b)
-    b = Activation(actvation, name='b'+str(i+1)+'sepconv1_act')(b)
-    b = SeparableConv2D(num_filters, (3,3), padding='same', use_bias=False, name='b'+str(i+1)+'_sepconv2')(b)
-    b = BatchNormalization(name='b'+str(i+1)+'sepconv2_bn')(b)
-    b = Activation(actvation, name='b'+str(i+1)+'sepconv2_act')(b)
-    output.append(Dense(num_classes[i], name='b'+str(i+1))(b))
-    """
-    #x = Dense(128,input_shape=train_data.shape[1:])(input)
-    #x = BatchNormalization()(x)
-    #x = Activation("relu")(x)
-    #output.append(Dense(num_classes[2], name="out")(x))
-    #output = Dense(num_classes[2], name="out")(x)
-    #model = Model(inputs=base_model.input, outputs=[output[0], output[1], output[2]])
-    #model = Model(inputs=model.input, outputs=output)
-
-    inputs = Input(shape=(input_shape,))
-    x = Dense(num_dense)(inputs)
-    x = BatchNormalization()(x)
-    x = Activation("relu")(x)
-    # add a output layer
-    if use_darc1:
-        output = Dense(num_classes[0])(x)
+    assert level == 1 or level == 2 or level == 3
+    # Load bottleneck features
+    train_data = np.load(utils_dir + 'bottleneck_features_train_level%d.npy' % level)
+    val_data = np.load(utils_dir + 'bottleneck_features_val_level%d.npy' % level)
+    # Load labels
+    if level is 3:
+        train_label = np.array(train_image_table)[:, 1]
+        val_label = np.array(val_image_table)[:, 1]
     else:
-        output = Dense(num_classes[0], activation='softmax')(x)
-    # this is the model we will train
-    model = Model(inputs=inputs, outputs=output)
-    return model
+        train_label = np.array(train_image_table)[:, level+1]
+        val_label = np.array(val_image_table)[:, level+1]
+
+    return train_data, val_data, train_label, val_label
 
 
 # Random search for hyperparameter optimization
-def train_random_search(max_val=10):
+def train_random_search(level, max_val=10):
     result_list = []
 
+    assert level == 1 or level == 2 or level == 3
+
+    # Load data
+    train_data, val_data, train_label, val_label = load_bottleneck(level)
+    if level is 3:
+        num_feature = 2048
+    else:
+        num_feature = 728
+
     for i in range(max_val):
+
+        # ---------------------------------------------------------------------------------
         # Params to be validated
-        initial_learning_rate = 10**random.uniform(-2, -4)
-#        initial_learning_rate = 0.003
-#        momentum = 1-10**random.uniform(0, -4)
-        momentum = 0.99
+        #
+
+#        initial_learning_rate = 10**random.uniform(-2, -4)
+        initial_learning_rate = 0.003
+        momentum = 1-10**random.uniform(0, -2)
+#        momentum = 0.999
+        decay_value = 0.3
+        decay_epoch = 10
+
+        alpha = 10**random.uniform(-3, -6)
+
 #        batch_size = random.choice([64, 256, 1024])
         batch_size = 512
-#        num_final_dense_layer = random.choice([32, 128, 512, 2048])
-        num_final_dense_layer = 2048
+        num_final_dense_layer = random.choice([32, 128, 512])
+#        num_final_dense_layer = 2048
 
-        model = model_last_block(2048, num_final_dense_layer, False)
-        adam = Adam(lr=initial_learning_rate)
-#        sgd = SGD(lr=initial_learning_rate, momentum=momentum)
+        num_epoch = 5
 
-        model.compile(
-            optimizer=adam,
-            #    loss=DARC1,
-            loss='sparse_categorical_crossentropy',
-            #    loss_weight=[lw1, lw2, lw3],
-            metrics=["accuracy"],
-        )
+        use_darc1 = True
 
-        # learning rate schedule (exponential decay)
-        def exp_decay(t):
-            lrate = initial_learning_rate * math.pow(decay_value, math.floor((1 + t) / decay_epoch))
-            return lrate
+        # ---------------------------------------------------------------------------------
+        # Define model
+        #
+
+#        adam = Adam(lr=initial_learning_rate)
+        sgd = SGD(lr=initial_learning_rate, momentum=momentum)
+
+        if use_darc1:
+            model = model_last_block(num_feature, num_classes[level-1], num_final_dense_layer, use_softmax=False)
+
+            model.compile(
+                optimizer=sgd,
+                loss=sparse_darc1(alpha),
+                metrics=["sparse_categorical_accuracy"],
+            )
+
+        else:
+            model = model_last_block(num_feature, num_classes[level-1], num_final_dense_layer, use_softmax=True)
+
+            model.compile(
+                optimizer=sgd,
+                loss='sparse_categorical_crossentropy',
+                metrics=["accuracy"],
+            )
 
         # Learning rate scheduler
-#        lr_scheduler = LearningRateScheduler(exp_decay)
+#        lr_scheduler = LearningRateScheduler(exp_decay_schedule(initial_learning_rate, decay_value, decay_epoch))
+
+        # ---------------------------------------------------------------------------------
+        # Start training
+        #
 
         model.fit(
-            train_data[:500000,:],
-            train_label[:500000],
+            train_data,
+            train_label,
             epochs=num_epoch,
             batch_size=batch_size,
             shuffle=True,
@@ -132,17 +135,16 @@ def train_random_search(max_val=10):
         )
 
         _, acc = model.evaluate(
-            train_data[:500000,:],
-            train_label[:500000],
-#            val_data,
-#            val_label,
-            batch_size=2048,
+            val_data,
+            val_label,
+            batch_size=1024,
             verbose=0)
 
         result_row = {
             "idx": i+1,
-            "train_acc": acc,
-            "batch": batch_size,
+            "val_acc": acc,
+            "alpha": alpha,
+#            "batch": batch_size,
             "num_dense": num_final_dense_layer,
             "lr": initial_learning_rate,
             "mom": momentum}
@@ -150,52 +152,60 @@ def train_random_search(max_val=10):
         print(result_row)
 
     result_df = pd.DataFrame(result_list)
-    result_df.to_csv(utils.result_dir + "fine_tuning_result_adam_2048.csv")
+    result_df.to_csv(utils.result_dir + "result_sgd_darc1_level1.csv")
 
 
 # Real train for fine tuning
-def train_fine_tuning():
-    # Params to be validated
-    initial_learning_rate = 0.003
-    batch_size = 512
-    num_final_dense_layer = 2048
-    model_prefix = 'Xception-last-layer-%d' % num_final_dense_layer
+def train_fine_tuning(level):
+    assert level == 1 or level == 2 or level == 3
 
-    model = model_last_block(2048, num_final_dense_layer, False)
-    adam = Adam(lr=initial_learning_rate)
-    #        sgd = SGD(lr=initial_learning_rate, momentum=momentum)
+    # Load data
+    train_data, val_data, train_label, val_label = load_bottleneck(level)
+    if level is 3:
+        num_feature = 2048
+    else:
+        num_feature = 728
+
+    # Params
+    initial_learning_rate = 0.05
+    momentum = 0.65
+    alpha = 3e-5
+    decay_value = 0.1
+    decay_epoch = 10
+    batch_size = 512
+    num_epoch = 30
+    num_final_dense_layer = 2048
+    model_prefix = 'Xception-last-layer-level%d-%d' % (level, num_final_dense_layer)
+#    model_prefix = 'Xception-last-layer-nofc'
+
+    model = model_last_block(num_feature, num_classes[level-1], num_final_dense_layer, False)
+#    adam = Adam(lr=initial_learning_rate)
+    sgd = SGD(lr=initial_learning_rate, momentum=momentum)
 
     model.compile(
-        optimizer=adam,
-        #    loss=DARC1,
-        loss='sparse_categorical_crossentropy',
-        metrics=["accuracy"],
+        optimizer=sgd,
+        loss=sparse_darc1(alpha),
+#        loss='sparse_categorical_crossentropy',
+        metrics=["sparse_categorical_accuracy"],
     )
 
-    # learning rate schedule (exponential decay)
-    def exp_decay(t):
-        lrate = initial_learning_rate * math.pow(decay_value, math.floor((1 + t) / decay_epoch))
-        return lrate
-
     # Learning rate scheduler
-    lr_scheduler = LearningRateScheduler(exp_decay)
+#    lr_scheduler = LearningRateScheduler(exp_decay_schedule(initial_learning_rate, decay_value, decay_epoch))
+
+    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=decay_value, patience=1, verbose=1, min_lr=1e-5)
 
     # Visualization when training
     tensorboard = TensorBoard(
-        log_dir=log_dir + "/add_fc/%d" % num_final_dense_layer,
-        histogram_freq=0,
+        log_dir=log_dir + "level%d/add_fc/%d/sgd/reduce1-0.1/" % (level, num_final_dense_layer),
         batch_size=batch_size,
-        write_graph=True,
-        write_images=False)
+        write_graph=False)
 
-    """
-    ModelCheckpoint(
-        model_dir + "%s-{epoch:02d}-{val_acc:.3f}.h5" % model_prefix,
-        monitor="val_acc",
-        save_best_only=True,
+    check = ModelCheckpoint(
+        model_dir + "level%d/reduce1-0.1/%s-{epoch:02d}-{val_sparse_categorical_accuracy:.3f}.h5" % (level, model_prefix),
+        monitor="val_sparse_categorical_accuracy",
+        save_best_only=False,
         save_weights_only=True,
     )
-    """
 
     history = model.fit(
         train_data,
@@ -204,11 +214,78 @@ def train_fine_tuning():
         batch_size=batch_size,
         shuffle=True,
         validation_data=(val_data, val_label),
-        callbacks=[lr_scheduler, tensorboard]
+        callbacks=[
+#            lr_scheduler,
+            check,
+            tensorboard,
+            reduce_lr,
+        ]
     )
-    model.save_weights(model_dir+'%s-%d-%.3f.h5' % (model_prefix, num_epoch, history.history['val_acc'][-1]))
+    model.save_weights(
+        model_dir+'%s-%d-%.3f.h5' %
+        (model_prefix, num_epoch, history.history['val_sparse_categorical_accuracy'][-1])
+    )
 
 
-#train_random_search(10)
+def save_combine_model(num_units, num_epoch, score, sub_path=None, use_softmax=True):
+    """Save combined model
 
-train_fine_tuning()
+    :param num_units:
+    :param num_epoch:
+    :param score:
+    :param sub_path:
+    :param use_softmax:
+    """
+    if sub_path is None:
+        model_path = model_dir+'Xception-last-layer-%d-%d-%.3f.h5' % (num_units, num_epoch, score)
+    else:
+        model_path = model_dir+sub_path+'Xception-last-layer-%d-%d-%.3f.h5' % (num_units, num_epoch, score)
+    model = combine_model(num_units, model_path, use_softmax=use_softmax)
+
+    model_prefix = 'Xception-combine-%.3f' % score
+    model.save_weights(model_dir+model_prefix+'.h5')
+
+
+def save_combine_model_3branch(num_units1, num_units2, num_units3, path_b1, path_b2, path_b3, score, use_softmax=True):
+    path_b1 = model_dir+"level1/"+path_b1
+    path_b2 = model_dir + "level2/" + path_b2
+    path_b3 = model_dir + "level3/" + path_b3
+
+    model = combine_model_3branch(
+        num_units1, num_units2, num_units3, path_b1, path_b2, path_b3, use_softmax)
+    model_prefix = 'Xception-combine-3branch-%.3f' % score
+    model.save_weights(model_dir+model_prefix+'.h5')
+
+
+def calculate_val_times(num_solutions, top_k, confidence):
+    """
+    Calculate how many times need to be search,
+    in order to achieve top_k result at that confidence.
+
+    :param num_solutions: total number of points in the search space
+    :param top_k: want to achieve top_k result
+    :param confidence: confidence probability, between 0-1
+
+    :return: search times
+    """
+    p = top_k/num_solutions
+    times = math.ceil(math.log(1-confidence, 1-p))
+    print("Need search: %d times." % times)
+    return int(times)
+
+
+#train_random_search(1, calculate_val_times(300, 10, 0.9))
+
+train_fine_tuning(3)
+
+#save_combine_model(2048, 25, 0.608)
+"""
+save_combine_model_3branch(
+    512, 1024, 2048,
+    path_b1="reduce1-0.1/Xception-last-layer-level1-512-26-0.724.h5",
+    path_b2="reduce1-0.1/Xception-last-layer-level2-1024-18-0.656.h5",
+    path_b3="reduce1-0.1/Xception-last-layer-level3-2048-24-0.600.h5",
+    score=0.600,
+    use_softmax=False,
+)
+"""
