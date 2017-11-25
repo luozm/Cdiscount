@@ -18,7 +18,7 @@ from keras.callbacks import ReduceLROnPlateau, LearningRateScheduler
 # custom callbacks, not the original keras one
 from utils.callbacks import TensorBoard, SnapshotModelCheckpoint, ModelCheckpoint, LossWeightsModifier
 from utils import utils
-from model.xception import xception_3branch
+from model.xception import xception_3branch, xception_3branch_test, xception_branch
 from utils.iterator import PickleIterator
 from utils.iterator import BSONIterator
 from model.loss import darc1
@@ -64,7 +64,7 @@ model_prefix = 'Xception-combine-3branch'
 train_datagen = ImageDataGenerator(
     samplewise_center=True,
     rescale=1./255,
-    horizontal_flip=True,
+#    horizontal_flip=True,
 #    zoom_range=0.2,
 #    rotation_range=20,
 #    width_shift_range=0.2,
@@ -102,10 +102,10 @@ val_gen = PickleIterator(
 #
 
 with tf.device("/cpu:0"):
-    model = xception_3branch(512, 1024, 2048, False)
+    model = xception_3branch_test(512, 1024, 2048, False)
 
     # Load weights
-    model.load_weights(model_dir+'%s-0.600.h5' % model_prefix)
+#    model.load_weights(model_dir+'%s-0.600.h5' % model_prefix)
 
 # make the model parallel
 parallel_model = multi_gpu_model(model, gpus=num_gpus)

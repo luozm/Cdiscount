@@ -17,7 +17,7 @@ from keras.callbacks import ReduceLROnPlateau, LearningRateScheduler
 from utils.callbacks import TensorBoard, SnapshotModelCheckpoint, ModelCheckpoint
 from utils import utils
 
-from model.xception import xception_3branch
+from model.xception import xception_no_branch
 from utils.iterator import PickleIterator
 from utils.iterator import BSONIterator
 from model.loss import darc1
@@ -55,7 +55,7 @@ decay_value = 0.1
 alpha = 5e-5
 num_snapshots = 1
 #model_prefix = 'Xception-pretrained-%d' % num_final_dense_layer
-model_prefix = 'Xception-combine-3branch'
+model_prefix = 'Xception-combine'
 
 # Create a generator for training and a generator for validation.
 train_datagen = ImageDataGenerator(
@@ -108,10 +108,10 @@ plt.show()
 #
 
 with tf.device("/cpu:0"):
-    model = xception_3branch(512, 1024, 2048, False)
+    model = xception_no_branch(2048, False)
 
     # Load weights
-    model.load_weights(model_dir+'%s-0.600.h5' % model_prefix)
+    model.load_weights(model_dir+'%s-0.608.h5' % model_prefix)
 
 # make the model parallel
 parallel_model = multi_gpu_model(model, gpus=num_gpus)

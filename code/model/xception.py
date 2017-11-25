@@ -333,6 +333,19 @@ def combine_model(num_units, path_branch, use_softmax=True):
     return model
 
 
+def xception_no_branch(num_units, use_softmax=True):
+    base_model = Xception(include_top=False, input_shape=(180, 180, 3))
+
+    # Load last layers after fine-tuning
+
+    # main branch
+    model_b = model_last_block(2048, num_classes, num_units=num_units, use_softmax=use_softmax)
+    output = model_b(base_model.output)
+
+    model = Model(inputs=base_model.input, outputs=output)
+    return model
+
+
 def xception_3branch(num_units1, num_units2, num_units3, use_softmax=True):
     inputs, x1, x2, x3 = base_model_3outputs(95, 115, 131)
 

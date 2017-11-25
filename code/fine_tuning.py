@@ -276,9 +276,9 @@ def calculate_val_times(num_solutions, top_k, confidence):
 
 #train_random_search(1, calculate_val_times(300, 10, 0.9))
 
-train_fine_tuning(3)
+#train_fine_tuning(3)
 
-#save_combine_model(2048, 25, 0.608)
+save_combine_model(2048, 25, 0.608)
 """
 save_combine_model_3branch(
     512, 1024, 2048,
