@@ -22,7 +22,8 @@ class BSONIterator(Iterator):
     def __init__(self, bson_file, image_table, product_table, num_label,
                  image_data_generator, num_label_level1=None, num_label_level2=None,
                  image_size=(180, 180), labelled=True, batch_size=32,
-                 shuffle=False, seed=None, use_hierarchical_label=False):
+                 shuffle=False, seed=None, use_hierarchical_label=False,
+                 use_crop=False, crop_size=(160, 160)):
         """
         :param bson_file:               The original bson file instance
         :param image_table:             The table that stores information of each image
@@ -37,6 +38,8 @@ class BSONIterator(Iterator):
         :param shuffle:                 Whether shuffle dataset or not
         :param seed:                    Random seed
         :param use_hierarchical_label:  Whether use hierarchical label or not
+        :param use_crop:                Whether use random crop or not
+        :param crop_size:               Random crop size
         """
         # Parameter initialization
         self.__file = bson_file
@@ -51,9 +54,12 @@ class BSONIterator(Iterator):
         self.__image_size = tuple(image_size)
         self.__image_shape = self.__image_size + (3,)
         self.__use_hierarchical_label = use_hierarchical_label
+        self.__seed = seed
+        self.__use_crop = use_crop
+        self.__crop_size = crop_size
 
         # Pass parameter back to super class
-        super(BSONIterator, self).__init__(self.__num_images, batch_size, shuffle, seed)
+        super(BSONIterator, self).__init__(self.__num_images, batch_size, shuffle, self.__seed)
 
         if self.__num_label is None:
             # Print out information
@@ -95,7 +101,9 @@ class BSONIterator(Iterator):
             # Pre process the image.
             img = load_img(io.BytesIO(bson_img), target_size=self.__image_size)
             x = img_to_array(img)
-            x = random_crop(x, self.__image_size)           # random crop the image
+            # random crop the image
+            if self.__use_crop:
+                x = random_crop(x, self.__crop_size, self.__seed)
             x = self.__image_data_generator.random_transform(x)
             x = self.__image_data_generator.standardize(x)
 
@@ -128,9 +136,10 @@ class PickleIterator(Iterator):
     Almost the same as BSONIterator.
 
     """
-    def __init__(self, num_label, pickle_file, image_data_generator, batch_size=32,
-                 num_label_level1=None, num_label_level2=None, use_hierarchical_label=False,
-                 image_size=(180, 180), labelled=True, shuffle=False, seed=None,):
+    def __init__(self, num_label, pickle_file, image_data_generator,
+                 batch_size=32, num_label_level1=None, num_label_level2=None,
+                 use_hierarchical_label=False, image_size=(180, 180), labelled=True,
+                 shuffle=False, seed=None, use_crop=False, crop_size=(160, 160)):
         """
         :param pickle_file:             The original bson file instance
         :param num_label:               The amount of categories
@@ -143,6 +152,8 @@ class PickleIterator(Iterator):
         :param batch_size:              Size of the batch
         :param shuffle:                 Whether use the shuffle strategy
         :param seed:                    Random seed
+        :param use_crop:                Whether use center crop or not
+        :param crop_size:               Center crop size
         """
         self.__pickle_file = pickle_file
         self.__batch_size = batch_size
@@ -155,9 +166,12 @@ class PickleIterator(Iterator):
         self.__image_shape = self.__image_size + (3,)
         self.__num_images = len(pickle_file)
         self.__use_hierarchical_label = use_hierarchical_label
+        self.__seed = seed
+        self.__use_crop = use_crop
+        self.__crop_size = crop_size
 
         # pass arguments to super class
-        super(PickleIterator, self).__init__(self.__num_images, batch_size, shuffle, seed)
+        super(PickleIterator, self).__init__(self.__num_images, batch_size, shuffle, self.__seed)
 
         if self.__num_label is None:
             # Print out information
@@ -187,7 +201,9 @@ class PickleIterator(Iterator):
             # Pre process the image.
             img = load_img(io.BytesIO(sample["image"]), target_size=self.__image_size)
             x = img_to_array(img)
-            x = center_crop(x, self.__image_size)           # center crop the image
+            # center crop the image
+            if self.__use_crop:
+                x = center_crop(x, self.__crop_size)
             x = self.__image_data_generator.random_transform(x)
             x = self.__image_data_generator.standardize(x)
 
@@ -213,7 +229,7 @@ def random_crop(x, random_crop_size, sync_seed=None, rng=np.random):
     w, h = x.shape[0], x.shape[1]
     rangew = (w - random_crop_size[0]) // 2
     rangeh = (h - random_crop_size[1]) // 2
-    # print('w: {}, h: {}, rangew: {}, rangeh: {}'.format(w, h, rangew, rangeh))
+
     offsetw = 0 if rangew == 0 else rng.randint(rangew)
     offseth = 0 if rangeh == 0 else rng.randint(rangeh)
     return x[offsetw:offsetw+random_crop_size[0], offseth:offseth+random_crop_size[1], :]
