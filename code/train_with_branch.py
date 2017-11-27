@@ -3,8 +3,6 @@
 # You can use it in combination with `ImageDataGenerator` for doing data augmentation.
 
 import os
-import io
-import numpy as np
 import pandas as pd
 
 import tensorflow as tf
@@ -18,7 +16,7 @@ from keras.callbacks import ReduceLROnPlateau, LearningRateScheduler
 # custom callbacks, not the original keras one
 from utils.callbacks import TensorBoard, SnapshotModelCheckpoint, ModelCheckpoint, LossWeightsModifier
 from utils import utils
-from model.xception import xception_3branch, xception_3branch_test, xception_branch
+from model.xception import xception_3branch
 from utils.iterator import PickleIterator
 from utils.iterator import BSONIterator
 from model.loss import darc1
@@ -102,10 +100,10 @@ val_gen = PickleIterator(
 #
 
 with tf.device("/cpu:0"):
-    model = xception_3branch_test(512, 1024, 2048, False)
+    model = xception_3branch(512, 1024, 2048, False)
 
     # Load weights
-#    model.load_weights(model_dir+'%s-0.600.h5' % model_prefix)
+    model.load_weights(model_dir+'%s-0.600.h5' % model_prefix)
 
 # make the model parallel
 parallel_model = multi_gpu_model(model, gpus=num_gpus)
@@ -118,11 +116,12 @@ lw1 = K.variable(value=0.1, dtype="float32", name="loss_weight1")  # A1 in paper
 lw2 = K.variable(value=0.2, dtype="float32", name="loss_weight2")  # A2 in paper
 lw3 = K.variable(value=0.7, dtype="float32", name="loss_weight3")  # A3 in paper
 
-model.compile(optimizer=sgd,
-              loss=darc1(alpha),
-              loss_weights=[lw1, lw2, lw3],
-              metrics=["accuracy"],
-              )
+parallel_model.compile(
+    optimizer=sgd,
+    loss=darc1(alpha),
+    loss_weights=[lw1, lw2, lw3],
+    metrics=["accuracy"],
+)
 
 model.summary()
 
@@ -137,14 +136,13 @@ tensorboard = TensorBoard(
 
 # Model checkpoints
 checkpoint = ModelCheckpoint(
-    model_dir + "%s-{epoch:02d}-{val_acc:.3f}.h5" % model_prefix,
-    monitor="val_acc",
+    model_dir + "%s-{epoch:02d}-{val_concatenate_3_acc:.3f}.h5" % model_prefix,
     save_best_only=False,
     save_weights_only=True,
     base_model=model
 )
 # Reduce learning rate when loss has stopped improving
-reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=decay_value, patience=1, verbose=1)
+reduce_lr = ReduceLROnPlateau(monitor='val_concatenate_3_loss', factor=decay_value, patience=1, verbose=1)
 
 # Build snapshot callback
 snapshot = SnapshotModelCheckpoint(num_epoch, num_snapshots, model, fn_prefix=model_dir + "%s" % model_prefix)
@@ -154,20 +152,26 @@ callback_list = [
 #    snapshot,
 #    LossWeightsModifier(lw1, lw2, lw3),
     reduce_lr,
-    tensorboard,
+#    tensorboard,
 ]
 
+score = parallel_model.evaluate_generator(
+    train_gen,
+    steps=(num_train_images // batch_size)+1,
+    workers=8)
+print(score)
+
 # To train the model:
-history = model.fit_generator(
+history = parallel_model.fit_generator(
     train_gen,
     steps_per_epoch=(num_train_images // batch_size)+1,
     epochs=num_epoch,
     validation_data=val_gen,
     validation_steps=(num_val_images // batch_size)+1,
-    workers=4,
+    workers=8,
     callbacks=callback_list,
     # initial_epoch=2
-    )
+)
 
 #print(snapshot.lr)
 #visual_result(history, snapshot.lr)

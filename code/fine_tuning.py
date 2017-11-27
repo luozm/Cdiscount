@@ -167,12 +167,12 @@ def train_fine_tuning(level):
         num_feature = 728
 
     # Params
-    initial_learning_rate = 0.05
-    momentum = 0.65
-    alpha = 3e-5
+    initial_learning_rate = 0.06
+    momentum = 0.5
+    alpha = 1e-4
     decay_value = 0.1
     decay_epoch = 10
-    batch_size = 512
+    batch_size = 128
     num_epoch = 30
     num_final_dense_layer = 2048
     model_prefix = 'Xception-last-layer-level%d-%d' % (level, num_final_dense_layer)
@@ -276,9 +276,9 @@ def calculate_val_times(num_solutions, top_k, confidence):
 
 #train_random_search(1, calculate_val_times(300, 10, 0.9))
 
-#train_fine_tuning(3)
+train_fine_tuning(3)
 
-save_combine_model(2048, 25, 0.608)
+#save_combine_model(2048, 25, 0.608)
 """
 save_combine_model_3branch(
     512, 1024, 2048,

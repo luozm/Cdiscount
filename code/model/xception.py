@@ -198,9 +198,9 @@ def xception_branch(num_dense):
 
     # we chose to train the top block and dense layers, i.e. we will freeze
     # the first 126 layers and unfreeze the rest:
-    for layer in model.layers[:86]:
+    for layer in model.layers[:0]:
         layer.trainable = False
-    for layer in model.layers[86:]:
+    for layer in model.layers[0:]:
         layer.trainable = True
 
     return model
@@ -240,29 +240,9 @@ def model_last_block(input_shape, num_labels, num_units, use_softmax=True):
     :param num_labels:
     :param num_units:
     :param use_softmax:
-    :return:
-    """
-    #base_model = Xception(include_top=False, weights=None, input_shape=(180,180,3),classes=num_classes[2])
-    #output = []
-    #input = model.input
-    """
-    for i in range(2):
-    b = SeparableConv2D(num_filters, (3,3), padding='same', use_bias=False, name='b'+str(i+1)+'_sepconv1')(input)
-    b = BatchNormalization(name='b'+str(i+1)+'sepconv1_bn')(b)
-    b = Activation(actvation, name='b'+str(i+1)+'sepconv1_act')(b)
-    b = SeparableConv2D(num_filters, (3,3), padding='same', use_bias=False, name='b'+str(i+1)+'_sepconv2')(b)
-    b = BatchNormalization(name='b'+str(i+1)+'sepconv2_bn')(b)
-    b = Activation(actvation, name='b'+str(i+1)+'sepconv2_act')(b)
-    output.append(Dense(num_classes[i], name='b'+str(i+1))(b))
-    """
-    #x = Dense(128,input_shape=train_data.shape[1:])(input)
-    #x = BatchNormalization()(x)
-    #x = Activation("relu")(x)
-    #output.append(Dense(num_classes[2], name="out")(x))
-    #output = Dense(num_classes[2], name="out")(x)
-    #model = Model(inputs=base_model.input, outputs=[output[0], output[1], output[2]])
-    #model = Model(inputs=model.input, outputs=output)
 
+    :return: last block model
+    """
     inputs = Input(shape=(input_shape,))
     x = Dense(num_units)(inputs)
     x = BatchNormalization()(x)
@@ -321,13 +301,15 @@ def combine_model(num_units, path_branch, use_softmax=True):
     """
 
     base_model = Xception(include_top=False, weights='imagenet', input_shape=(180, 180, 3))
+    x = base_model.layers[131].output
+    x = GlobalAveragePooling2D()(x)
 
     # Load last layers after fine-tuning
 
     # main branch
     model_b = model_last_block(2048, num_classes, num_units=num_units, use_softmax=use_softmax)
     model_b.load_weights(path_branch)
-    output = model_b(base_model.output)
+    output = model_b(x)
 
     model = Model(inputs=base_model.input, outputs=output)
     return model
@@ -340,7 +322,10 @@ def xception_no_branch(num_units, use_softmax=True):
 
     # main branch
     model_b = model_last_block(2048, num_classes, num_units=num_units, use_softmax=use_softmax)
-    output = model_b(base_model.output)
+    # add a global spatial average pooling layer
+    x = base_model.output
+    x = GlobalAveragePooling2D()(x)
+    output = model_b(x)
 
     model = Model(inputs=base_model.input, outputs=output)
     return model
