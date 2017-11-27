@@ -95,6 +95,7 @@ class BSONIterator(Iterator):
             # Pre process the image.
             img = load_img(io.BytesIO(bson_img), target_size=self.__image_size)
             x = img_to_array(img)
+            x = random_crop(x, self.__image_size)           # random crop the image
             x = self.__image_data_generator.random_transform(x)
             x = self.__image_data_generator.standardize(x)
 
@@ -186,6 +187,7 @@ class PickleIterator(Iterator):
             # Pre process the image.
             img = load_img(io.BytesIO(sample["image"]), target_size=self.__image_size)
             x = img_to_array(img)
+            x = center_crop(x, self.__image_size)           # center crop the image
             x = self.__image_data_generator.random_transform(x)
             x = self.__image_data_generator.standardize(x)
 
@@ -204,3 +206,21 @@ class PickleIterator(Iterator):
                 return batch_x, [batch_y_level1, batch_y_level2, batch_y]
         else:
             return batch_x
+
+
+def random_crop(x, random_crop_size, sync_seed=None, rng=np.random):
+    # np.random.seed(sync_seed)
+    w, h = x.shape[0], x.shape[1]
+    rangew = (w - random_crop_size[0]) // 2
+    rangeh = (h - random_crop_size[1]) // 2
+    # print('w: {}, h: {}, rangew: {}, rangeh: {}'.format(w, h, rangew, rangeh))
+    offsetw = 0 if rangew == 0 else rng.randint(rangew)
+    offseth = 0 if rangeh == 0 else rng.randint(rangeh)
+    return x[offsetw:offsetw+random_crop_size[0], offseth:offseth+random_crop_size[1], :]
+
+
+def center_crop(x, center_crop_size):
+    centerw, centerh = x.shape[1]//2, x.shape[2]//2
+    halfw, halfh = center_crop_size[0]//2, center_crop_size[1]//2
+    return x[:, centerw-halfw:centerw+halfw,centerh-halfh:centerh+halfh]
+
