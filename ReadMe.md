@@ -2,42 +2,42 @@
 This document is for kaggle  Cdiscount competition. All codes are written by Python3.5.
 
 ## Directory & File structure
-.
-├── code                            # Code files
-|   ├── model                       # model package
-|   |   ├── loss.py
-|   |   ├── lr_schedule.py
-|   |   └── xception.py
-|   ├── utils                       # utils package
-|   |   ├── callbacks.py
-|   |   ├── iterator.py
-|   |   ├── sysmonitor.py           # (optional) use for monitoring CPU & GPU status
-|   |   └── utils.py                # default settings
-|   ├── feature_extractor.py
-|   ├── fine_tuning.py
-|   ├── predict_with_snapshot.py
-|   ├── prediction.py
-|   ├── preprocessing.py
-|   ├── split_validation.py
-|   ├── train_with_branch.py
-|   └── training.py
-├── data                            # Data files
-|   ├── input                       # Original data files
-|   |   ├── category_names.csv
-|   |   ├── sample_submission.csv
-|   |   ├── test.bson
-|   |   └── train.bson
-|   ├── logs
-|   |   └── ...
-|   ├── results
-|   |   └── ...
-|   ├── utils
-|   |   └── ...
-|   └── weights
-|       └── ...
-├── source_code                     # Unused files, only for reference
-|   └── ...
-└── ReadMe.md
+    .
+    ├── code                            # Code files
+    |   ├── model                       # model package
+    |   |   ├── loss.py
+    |   |   ├── lr_schedule.py
+    |   |   └── xception.py
+    |   ├── utils                       # utils package
+    |   |   ├── callbacks.py
+    |   |   ├── iterator.py
+    |   |   ├── sysmonitor.py           # (optional) use for monitoring CPU & GPU status
+    |   |   └── utils.py                # default settings
+    |   ├── feature_extractor.py
+    |   ├── fine_tuning.py
+    |   ├── predict_with_snapshot.py
+    |   ├── prediction.py
+    |   ├── preprocessing.py
+    |   ├── split_validation.py
+    |   ├── train_with_branch.py
+    |   └── training.py
+    ├── data                            # Data files
+    |   ├── input                       # Original data files
+    |   |   ├── category_names.csv
+    |   |   ├── sample_submission.csv
+    |   |   ├── test.bson
+    |   |   └── train.bson
+    |   ├── logs
+    |   |   └── ...
+    |   ├── results
+    |   |   └── ...
+    |   ├── utils
+    |   |   └── ...
+    |   └── weights
+    |       └── ...
+    ├── source_code                     # Unused files, only for reference
+    |   └── ...
+    └── ReadMe.md
 
 ## Instruction
 1. Put your input files into /data/input folder.
