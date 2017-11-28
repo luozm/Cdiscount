@@ -1,6 +1,44 @@
 # Codes for Cdiscount kaggle competition of NullPointerException team
 This document is for kaggle  Cdiscount competition. All codes are written by Python3.5.
 
+## Directory & File structure
+.
+├── code                            # Code files
+|   ├── model                       # model package
+|   |   ├── loss.py
+|   |   ├── lr_schedule.py
+|   |   └── xception.py
+|   ├── utils                       # utils package
+|   |   ├── callbacks.py
+|   |   ├── iterator.py
+|   |   ├── sysmonitor.py           # (optional) use for monitoring CPU & GPU status
+|   |   └── utils.py                # default settings
+|   ├── feature_extractor.py
+|   ├── fine_tuning.py
+|   ├── predict_with_snapshot.py
+|   ├── prediction.py
+|   ├── preprocessing.py
+|   ├── split_validation.py
+|   ├── train_with_branch.py
+|   └── training.py
+├── data                            # Data files
+|   ├── input                       # Original data files
+|   |   ├── category_names.csv
+|   |   ├── sample_submission.csv
+|   |   ├── test.bson
+|   |   └── train.bson
+|   ├── logs
+|   |   └── ...
+|   ├── results
+|   |   └── ...
+|   ├── utils
+|   |   └── ...
+|   └── weights
+|       └── ...
+├── source_code                     # Unused files, only for reference
+|   └── ...
+└── ReadMe.md
+
 ## Instruction
 1. Put your input files into /data/input folder.
 2. Preprocess the dataset using `preprocessing.py`
@@ -9,13 +47,20 @@ This document is for kaggle  Cdiscount competition. All codes are written by Pyt
 5. Make prediction and submission using `prediction.py` or `prediction_with_snapshot.py`
 
 ## Team Members
-ZJY
-
-LRQ
-
 LZM
 
+ZJY
+
 MTJ
+
+## Requirements
+1. Tensorflow 1.3.0
+2. Keras 2.0.9 (2.0.9 support multi-gpu)
+3. Pymongo 3.5.1 (use for import bson, don't really import pymongo)
+4. Pandas
+5. Numpy
+6. Matplotlib
+7. h5py
 
 ## Citations
 All codes from internet are listed in source_code folder

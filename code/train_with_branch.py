@@ -10,7 +10,7 @@ import keras
 from keras.utils.training_utils import multi_gpu_model
 from keras.preprocessing.image import ImageDataGenerator
 from keras import backend as K
-from keras.optimizers import Adam, SGD, Adamax
+from keras.optimizers import Adam, SGD
 from keras.callbacks import ReduceLROnPlateau, LearningRateScheduler
 
 # custom callbacks, not the original keras one
@@ -45,6 +45,7 @@ num_train_images = len(train_image_table)
 num_val_images = len(pickle_file)
 train_bson_file = open(train_bson_path, "rb")
 
+use_crop = utils.use_crop
 num_gpus = 8
 batch_size = 32*num_gpus
 num_epoch = 10
@@ -62,7 +63,7 @@ model_prefix = 'Xception-combine-3branch'
 train_datagen = ImageDataGenerator(
     samplewise_center=True,
     rescale=1./255,
-#    horizontal_flip=True,
+    horizontal_flip=True,
 #    zoom_range=0.2,
 #    rotation_range=20,
 #    width_shift_range=0.2,
@@ -78,7 +79,8 @@ train_gen = BSONIterator(
     num_label_level2=num_classes_level2,
     batch_size=batch_size,
     shuffle=True,
-    use_hierarchical_label=True
+    use_hierarchical_label=True,
+    use_crop=use_crop
 )
 
 val_datagen = ImageDataGenerator(
@@ -92,7 +94,8 @@ val_gen = PickleIterator(
     batch_size=batch_size,
     num_label_level1=num_classes_level1,
     num_label_level2=num_classes_level2,
-    use_hierarchical_label=True
+    use_hierarchical_label=True,
+    use_crop=use_crop
 )
 
 # ---------------------------------------------------------------------------------
@@ -103,7 +106,8 @@ with tf.device("/cpu:0"):
     model = xception_3branch(512, 1024, 2048, False)
 
     # Load weights
-    model.load_weights(model_dir+'%s-0.600.h5' % model_prefix)
+#    model.load_weights(model_dir+'%s-0.600.h5' % model_prefix)
+    model.load_weights(model_dir+'%s-01-0.566.h5' % model_prefix)
 
 # make the model parallel
 parallel_model = multi_gpu_model(model, gpus=num_gpus)
@@ -152,12 +156,12 @@ callback_list = [
 #    snapshot,
 #    LossWeightsModifier(lw1, lw2, lw3),
     reduce_lr,
-#    tensorboard,
+    tensorboard,
 ]
 
 score = parallel_model.evaluate_generator(
-    train_gen,
-    steps=(num_train_images // batch_size)+1,
+    val_gen,
+    steps=(10000 // batch_size)+1,
     workers=8)
 print(score)
 

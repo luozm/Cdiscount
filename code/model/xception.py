@@ -14,6 +14,15 @@ from utils import utils
 num_classes = utils.num_classes
 num_classes1 = utils.num_class_level_one
 num_classes2 = utils.num_class_level_two
+use_crop = utils.use_crop
+crop_size = utils.crop_size
+crop_shape = tuple(crop_size) + (3,)
+
+# Use crop or not
+if use_crop:
+    input_shape = crop_shape
+else:
+    input_shape = (180, 180, 3)
 
 
 def xception(add_fc, num_units=None, use_pretrained_weights=True, trainable_layers=126, use_softmax=True):
@@ -30,9 +39,9 @@ def xception(add_fc, num_units=None, use_pretrained_weights=True, trainable_laye
     :return: loaded Xception model
     """
     if not use_pretrained_weights:
-        model = Xception(include_top=True, weights=None, input_shape=(180, 180, 3), classes=num_classes)
+        model = Xception(include_top=True, weights=None, input_shape=input_shape, classes=num_classes)
     else:
-        base_model = Xception(include_top=False, weights='imagenet', input_shape=(180, 180, 3))
+        base_model = Xception(include_top=False, weights='imagenet', input_shape=input_shape)
         # add a global spatial average pooling layer
         x = base_model.output
         x = GlobalAveragePooling2D()(x)
@@ -75,7 +84,7 @@ def extractor_3outputs(layer1, layer2, layer3):
 
     :return: A Xception model cut by 'name'
     """
-    base_model = Xception(include_top=False, weights='imagenet', input_shape=(180, 180, 3))
+    base_model = Xception(include_top=False, weights='imagenet', input_shape=input_shape)
 
     # output1
     x1 = base_model.layers[layer1].output
@@ -105,7 +114,7 @@ def extractor_by_layer(layer):
 
     :return: A Xception model cut by 'layer'
     """
-    base_model = Xception(include_top=False, weights='imagenet', input_shape=(180, 180, 3))
+    base_model = Xception(include_top=False, weights='imagenet', input_shape=input_shape)
     # add a global spatial average pooling layer
     x = base_model.layers[layer].output
     x = GlobalAveragePooling2D()(x)
@@ -125,7 +134,7 @@ def extractor_by_name(name):
 
     :return: A Xception model cut by 'name'
     """
-    base_model = Xception(include_top=False, weights='imagenet', input_shape=(180, 180, 3))
+    base_model = Xception(include_top=False, weights='imagenet', input_shape=input_shape)
     # add a global spatial average pooling layer
     x = base_model.get_layer(name).output
     x = GlobalAveragePooling2D()(x)
@@ -172,7 +181,7 @@ def xception_branch(num_dense):
     :param num_dense:
     :return:
     """
-    base_model = Xception(include_top=False, weights='imagenet', input_shape=(180, 180, 3))
+    base_model = Xception(include_top=False, weights='imagenet', input_shape=input_shape)
 
     # add branches into the model
 
@@ -215,7 +224,7 @@ def base_model_3outputs(layer1, layer2, layer3):
 
     :return: input, output1, output2, output3
     """
-    base_model = Xception(include_top=False, weights='imagenet', input_shape=(180, 180, 3))
+    base_model = Xception(include_top=False, weights='imagenet', input_shape=input_shape)
 
     # output1
     x1 = base_model.layers[layer1].output
@@ -233,17 +242,17 @@ def base_model_3outputs(layer1, layer2, layer3):
     return base_model.input, x1, x2, x3
 
 
-def model_last_block(input_shape, num_labels, num_units, use_softmax=True):
+def model_last_block(input_size, num_labels, num_units, use_softmax=True):
     """Random initialized layers
 
-    :param input_shape:
+    :param input_size:
     :param num_labels:
     :param num_units:
     :param use_softmax:
 
     :return: last block model
     """
-    inputs = Input(shape=(input_shape,))
+    inputs = Input(shape=(input_size,))
     x = Dense(num_units)(inputs)
     x = BatchNormalization()(x)
     x = Activation("relu")(x)
@@ -266,6 +275,8 @@ def combine_model_3branch(num_units1, num_units2, num_units3, path_b1, path_b2, 
     :param path_b1:
     :param path_b2:
     :param path_b3:
+    :param use_softmax:
+
     :return:
     """
     inputs, x1, x2, x3 = base_model_3outputs(95, 115, 131)
@@ -300,7 +311,7 @@ def combine_model(num_units, path_branch, use_softmax=True):
     :return:
     """
 
-    base_model = Xception(include_top=False, weights='imagenet', input_shape=(180, 180, 3))
+    base_model = Xception(include_top=False, weights='imagenet', input_shape=input_shape)
     x = base_model.layers[131].output
     x = GlobalAveragePooling2D()(x)
 
@@ -316,7 +327,7 @@ def combine_model(num_units, path_branch, use_softmax=True):
 
 
 def xception_no_branch(num_units, use_softmax=True):
-    base_model = Xception(include_top=False, input_shape=(180, 180, 3))
+    base_model = Xception(include_top=False, input_shape=input_shape)
 
     # Load last layers after fine-tuning
 

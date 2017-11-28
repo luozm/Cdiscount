@@ -46,6 +46,7 @@ num_train_images = len(train_image_table)
 num_val_images = len(pickle_file)
 train_bson_file = open(train_bson_path, "rb")
 
+use_crop = utils.use_crop
 num_gpus = 8
 batch_size = 32*num_gpus
 num_epoch = 10
@@ -75,6 +76,7 @@ train_gen = BSONIterator(
     train_datagen,
     batch_size=batch_size,
     shuffle=True,
+    use_crop=use_crop
 )
 
 val_datagen = ImageDataGenerator(
@@ -86,6 +88,7 @@ val_gen = PickleIterator(
     pickle_file,
     val_datagen,
     batch_size=batch_size,
+    use_crop=use_crop
 )
 
 """

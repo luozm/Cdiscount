@@ -56,7 +56,8 @@ class BSONIterator(Iterator):
         self.__use_hierarchical_label = use_hierarchical_label
         self.__seed = seed
         self.__use_crop = use_crop
-        self.__crop_size = crop_size
+        self.__crop_size = tuple(crop_size)
+        self.__crop_shape = self.__crop_size + (3,)
 
         # Pass parameter back to super class
         super(BSONIterator, self).__init__(self.__num_images, batch_size, shuffle, self.__seed)
@@ -74,7 +75,11 @@ class BSONIterator(Iterator):
         """
 
         # Initialize the zeros arrays to store image and label
-        batch_x = np.zeros((len(index_array),) + self.__image_shape, dtype=K.floatx())
+        if self.__use_crop:
+            batch_x = np.zeros((len(index_array),) + self.__crop_shape, dtype=K.floatx())
+        else:
+            batch_x = np.zeros((len(index_array),) + self.__image_shape, dtype=K.floatx())
+
         if self.__labelled:
             batch_y = np.zeros((len(batch_x), self.__num_label), dtype=K.floatx())
             if self.__use_hierarchical_label:
@@ -168,7 +173,8 @@ class PickleIterator(Iterator):
         self.__use_hierarchical_label = use_hierarchical_label
         self.__seed = seed
         self.__use_crop = use_crop
-        self.__crop_size = crop_size
+        self.__crop_size = tuple(crop_size)
+        self.__crop_shape = self.__crop_size + (3,)
 
         # pass arguments to super class
         super(PickleIterator, self).__init__(self.__num_images, batch_size, shuffle, self.__seed)
@@ -188,7 +194,11 @@ class PickleIterator(Iterator):
         :param index_array:
         :return: Batch of samples(pair of image and label)
         """
-        batch_x = np.zeros((len(index_array),) + self.__image_shape, dtype=K.floatx())
+        if self.__use_crop:
+            batch_x = np.zeros((len(index_array),) + self.__crop_shape, dtype=K.floatx())
+        else:
+            batch_x = np.zeros((len(index_array),) + self.__image_shape, dtype=K.floatx())
+
         if self.__labelled:
             batch_y = np.zeros((len(batch_x), self.__num_label), dtype=K.floatx())
             if self.__use_hierarchical_label:
@@ -238,5 +248,5 @@ def random_crop(x, random_crop_size, sync_seed=None, rng=np.random):
 def center_crop(x, center_crop_size):
     centerw, centerh = x.shape[1]//2, x.shape[2]//2
     halfw, halfh = center_crop_size[0]//2, center_crop_size[1]//2
-    return x[:, centerw-halfw:centerw+halfw,centerh-halfh:centerh+halfh]
+    return x[:, centerw-halfw:centerw+halfw, centerh-halfh:centerh+halfh]
 

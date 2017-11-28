@@ -28,6 +28,9 @@ num_classes = 5270
 num_class_level_one = 49
 num_class_level_two = 483
 
+use_crop = True
+crop_size = (160, 160)
+
 
 def make_category_tables(category_table):
     """Mapping 'category id' to 'label id'

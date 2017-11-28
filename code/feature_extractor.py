@@ -38,6 +38,7 @@ num_train_images = len(train_image_table)
 num_val_images = len(pickle_file)
 train_bson_file = open(train_bson_path, "rb")
 
+use_crop = utils.use_crop
 num_gpus = 8
 batch_size = 256*num_gpus
 
@@ -50,6 +51,7 @@ train_gen = BSONIterator(train_bson_file,
                          train_datagen,
                          batch_size=batch_size,
                          labelled=False,
+                         use_crop=use_crop,
                          )
 
 val_datagen = ImageDataGenerator(samplewise_center=True, rescale=1./255)
@@ -58,6 +60,7 @@ val_gen = PickleIterator(None,
                          val_datagen,
                          batch_size=batch_size,
                          labelled=False,
+                         use_crop=use_crop,
                          )
 
 
@@ -79,9 +82,9 @@ bottleneck_features_train = parallel_model.predict_generator(
     verbose=1
 )
 
-np.save(utils_dir+'bottleneck_features_train_level1.npy', bottleneck_features_train[0])
-np.save(utils_dir+'bottleneck_features_train_level2.npy', bottleneck_features_train[1])
-np.save(utils_dir+'bottleneck_features_train_level3.npy', bottleneck_features_train[2])
+np.save(utils_dir+'bottleneck_features_train_level1_160.npy', bottleneck_features_train[0])
+np.save(utils_dir+'bottleneck_features_train_level2_160.npy', bottleneck_features_train[1])
+np.save(utils_dir+'bottleneck_features_train_level3_160.npy', bottleneck_features_train[2])
 print("Successfully save bottleneck_features_train")
 
 bottleneck_features_val = parallel_model.predict_generator(
@@ -91,7 +94,7 @@ bottleneck_features_val = parallel_model.predict_generator(
     verbose=1
 )
 
-np.save(utils_dir+'bottleneck_features_val_level1.npy', bottleneck_features_val[0])
-np.save(utils_dir+'bottleneck_features_val_level2.npy', bottleneck_features_val[1])
-np.save(utils_dir+'bottleneck_features_val_level3.npy', bottleneck_features_val[2])
+np.save(utils_dir+'bottleneck_features_val_level1_160.npy', bottleneck_features_val[0])
+np.save(utils_dir+'bottleneck_features_val_level2_160.npy', bottleneck_features_val[1])
+np.save(utils_dir+'bottleneck_features_val_level3_160.npy', bottleneck_features_val[2])
 print("Successfully save bottleneck_features_val")
