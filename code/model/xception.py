@@ -243,7 +243,7 @@ def base_model_3outputs(layer1, layer2, layer3):
 
 
 def model_last_block(input_size, num_labels, num_units, use_softmax=True):
-    """Random initialized layers
+    """The model of random initialized layers
 
     :param input_size:
     :param num_labels:
@@ -266,6 +266,28 @@ def model_last_block(input_size, num_labels, num_units, use_softmax=True):
     return model
 
 
+def branch_last_block(inputs, branch_name, num_labels, num_units, use_softmax=True):
+    """Random initialized layers (branch)
+
+    :param inputs: input tensor
+    :param branch_name: name of the branch
+    :param num_labels: number of output classes
+    :param num_units: number of units in the additional dense layer
+    :param use_softmax: whether or not use softmax activation function
+
+    :return: output tensor
+    """
+    x = Dense(num_units, name=branch_name+'_dense1')(inputs)
+    x = BatchNormalization(name=branch_name+'_dense1_bn')(x)
+    x = Activation("relu", name=branch_name+'_dense1_act')(x)
+    # add a output layer
+    if not use_softmax:
+        output = Dense(num_labels, name=branch_name)(x)
+    else:
+        output = Dense(num_labels, activation='softmax', name=branch_name)(x)
+    return output
+
+
 def combine_model_3branch(num_units1, num_units2, num_units3, path_b1, path_b2, path_b3, use_softmax=True):
     """Combining whole model (3 branches)
 
@@ -281,24 +303,52 @@ def combine_model_3branch(num_units1, num_units2, num_units3, path_b1, path_b2, 
     """
     inputs, x1, x2, x3 = base_model_3outputs(95, 115, 131)
 
+    # Add last block layers
+    b1 = branch_last_block(x1, 'b1', num_classes1, num_units1, use_softmax=use_softmax)
+    b2 = branch_last_block(x2, 'b2', num_classes2, num_units2, use_softmax=use_softmax)
+    b3 = branch_last_block(x3, 'b3', num_classes, num_units3, use_softmax=use_softmax)
+
+    model = Model(inputs=inputs, outputs=[b1, b2, b3])
+
     # Load last layers after fine-tuning
 
     # branch1
+
+    # Load model weights
     model_b1 = model_last_block(728, num_classes1, num_units=num_units1, use_softmax=use_softmax)
     model_b1.load_weights(path_b1)
-    b1 = model_b1(x1)
+    # Name of target layers
+    layer_names_b1 = ['input', 'b1_dense1', 'b1_dense1_bn', 'b1_dense1_act', 'b1']
+    # Set weights
+    for i, layer in enumerate(model_b1.layers):
+        weight = layer.get_weights()
+        if not weight == []:
+            model.get_layer(layer_names_b1[i]).set_weights(weight)
 
     # branch2
+
     model_b2 = model_last_block(728, num_classes2, num_units=num_units2, use_softmax=use_softmax)
     model_b2.load_weights(path_b2)
-    b2 = model_b2(x2)
+
+    layer_names_b2 = ['input', 'b2_dense1', 'b2_dense1_bn', 'b2_dense1_act', 'b2']
+    # Set weights
+    for i, layer in enumerate(model_b2.layers):
+        weight = layer.get_weights()
+        if not weight == []:
+            model.get_layer(layer_names_b2[i]).set_weights(weight)
 
     # main branch
+
     model_b3 = model_last_block(2048, num_classes, num_units=num_units3, use_softmax=use_softmax)
     model_b3.load_weights(path_b3)
-    b3 = model_b3(x3)
 
-    model = Model(inputs=inputs, outputs=[b1, b2, b3])
+    layer_names_b3 = ['input', 'b3_dense1', 'b3_dense1_bn', 'b3_dense1_act', 'b3']
+    # Set weights
+    for i, layer in enumerate(model_b3.layers):
+        weight = layer.get_weights()
+        if not weight == []:
+            model.get_layer(layer_names_b3[i]).set_weights(weight)
+
     return model
 
 
@@ -345,56 +395,10 @@ def xception_no_branch(num_units, use_softmax=True):
 def xception_3branch(num_units1, num_units2, num_units3, use_softmax=True):
     inputs, x1, x2, x3 = base_model_3outputs(95, 115, 131)
 
-    # Load last layers after fine-tuning
-
-    # branch1
-    model_b1 = model_last_block(728, num_classes1, num_units=num_units1, use_softmax=use_softmax)
-    b1 = model_b1(x1)
-
-    # branch2
-    model_b2 = model_last_block(728, num_classes2, num_units=num_units2, use_softmax=use_softmax)
-    b2 = model_b2(x2)
-
-    # main branch
-    model_b3 = model_last_block(2048, num_classes, num_units=num_units3, use_softmax=use_softmax)
-    b3 = model_b3(x3)
+    # Add last block layers
+    b1 = branch_last_block(x1, 'b1', num_classes1, num_units1, use_softmax=use_softmax)
+    b2 = branch_last_block(x2, 'b2', num_classes2, num_units2, use_softmax=use_softmax)
+    b3 = branch_last_block(x3, 'b3', num_classes, num_units3, use_softmax=use_softmax)
 
     model = Model(inputs=inputs, outputs=[b1, b2, b3])
-    return model
-
-
-def xception_3branch_test(num_units1, num_units2, num_units3, use_softmax=True):
-    inputs, x1, x2, x3 = base_model_3outputs(95, 115, 131)
-
-    # branch1
-    b1 = Dense(num_units1)(x1)
-    b1 = BatchNormalization()(b1)
-    b1 = Activation("relu")(b1)
-    # add a output layer
-    if not use_softmax:
-        out1 = Dense(num_classes1)(b1)
-    else:
-        out1 = Dense(num_classes1, activation='softmax')(b1)
-
-    # branch2
-    b2 = Dense(num_units2)(x2)
-    b2 = BatchNormalization()(b2)
-    b2 = Activation("relu")(b2)
-    # add a output layer
-    if not use_softmax:
-        out2 = Dense(num_classes2)(b2)
-    else:
-        out2 = Dense(num_classes2, activation='softmax')(b2)
-
-    # main branch
-    b3 = Dense(num_units3)(x3)
-    b3 = BatchNormalization()(b3)
-    b3 = Activation("relu")(b3)
-    # add a output layer
-    if not use_softmax:
-        output = Dense(num_classes)(b3)
-    else:
-        output = Dense(num_classes, activation='softmax')(b3)
-
-    model = Model(inputs=inputs, outputs=[out1, out2, output])
     return model

@@ -42,8 +42,8 @@ def load_bottleneck(level):
     """
     assert level == 1 or level == 2 or level == 3
     # Load bottleneck features
-    train_data = np.load(utils_dir + 'bottleneck_features_train_level%d.npy' % level)
-    val_data = np.load(utils_dir + 'bottleneck_features_val_level%d.npy' % level)
+    train_data = np.load(utils_dir + 'bottleneck_features_train_level%d_160.npy' % level)
+    val_data = np.load(utils_dir + 'bottleneck_features_val_level%d_160.npy' % level)
     # Load labels
     if level is 3:
         train_label = np.array(train_image_table)[:, 1]
@@ -156,7 +156,7 @@ def train_random_search(level, max_val=10):
 
 
 # Real train for fine tuning
-def train_fine_tuning(level):
+def train_fine_tuning(level, num_dense):
     assert level == 1 or level == 2 or level == 3
 
     # Load data
@@ -172,11 +172,10 @@ def train_fine_tuning(level):
     alpha = 1e-4
     decay_value = 0.1
     decay_epoch = 10
-    batch_size = 128
-    num_epoch = 30
-    num_final_dense_layer = 2048
-    model_prefix = 'Xception-last-layer-level%d-%d' % (level, num_final_dense_layer)
-#    model_prefix = 'Xception-last-layer-nofc'
+    batch_size = 512
+    num_epoch = 20
+    num_final_dense_layer = num_dense
+    model_prefix = 'Xception-last-layer-level%d-%d-crop160' % (level, num_final_dense_layer)
 
     model = model_last_block(num_feature, num_classes[level-1], num_final_dense_layer, False)
 #    adam = Adam(lr=initial_learning_rate)
@@ -196,12 +195,12 @@ def train_fine_tuning(level):
 
     # Visualization when training
     tensorboard = TensorBoard(
-        log_dir=log_dir + "level%d/add_fc/%d/sgd/reduce1-0.1/" % (level, num_final_dense_layer),
+        log_dir=log_dir + "crop_160/level%d/add_fc/%d/sgd/" % (level, num_final_dense_layer),
         batch_size=batch_size,
         write_graph=False)
 
     check = ModelCheckpoint(
-        model_dir + "level%d/reduce1-0.1/%s-{epoch:02d}-{val_sparse_categorical_accuracy:.3f}.h5" % (level, model_prefix),
+        model_dir + "crop_160/level%d/%s-{epoch:02d}-{val_sparse_categorical_accuracy:.3f}.h5" % (level, model_prefix),
         monitor="val_sparse_categorical_accuracy",
         save_best_only=False,
         save_weights_only=True,
@@ -221,10 +220,12 @@ def train_fine_tuning(level):
             reduce_lr,
         ]
     )
+    """
     model.save_weights(
         model_dir+'%s-%d-%.3f.h5' %
         (model_prefix, num_epoch, history.history['val_sparse_categorical_accuracy'][-1])
     )
+    """
 
 
 def save_combine_model(num_units, num_epoch, score, sub_path=None, use_softmax=True):
@@ -247,13 +248,13 @@ def save_combine_model(num_units, num_epoch, score, sub_path=None, use_softmax=T
 
 
 def save_combine_model_3branch(num_units1, num_units2, num_units3, path_b1, path_b2, path_b3, score, use_softmax=True):
-    path_b1 = model_dir+"level1/"+path_b1
-    path_b2 = model_dir + "level2/" + path_b2
-    path_b3 = model_dir + "level3/" + path_b3
+    path_b1 = model_dir+"crop_160/level1/"+path_b1
+    path_b2 = model_dir + "crop_160/level2/" + path_b2
+    path_b3 = model_dir + "crop_160/level3/" + path_b3
 
     model = combine_model_3branch(
         num_units1, num_units2, num_units3, path_b1, path_b2, path_b3, use_softmax)
-    model_prefix = 'Xception-combine-3branch-%.3f' % score
+    model_prefix = 'Xception-combine-3branch-crop160-%.3f' % score
     model.save_weights(model_dir+model_prefix+'.h5')
 
 
@@ -276,16 +277,18 @@ def calculate_val_times(num_solutions, top_k, confidence):
 
 #train_random_search(1, calculate_val_times(300, 10, 0.9))
 
-train_fine_tuning(3)
+#train_fine_tuning(1, 512)
+#train_fine_tuning(2, 1024)
+#train_fine_tuning(3, 2048)
 
 #save_combine_model(2048, 25, 0.608)
-"""
+
 save_combine_model_3branch(
     512, 1024, 2048,
-    path_b1="reduce1-0.1/Xception-last-layer-level1-512-26-0.724.h5",
-    path_b2="reduce1-0.1/Xception-last-layer-level2-1024-18-0.656.h5",
-    path_b3="reduce1-0.1/Xception-last-layer-level3-2048-24-0.600.h5",
-    score=0.600,
+    path_b1="Xception-last-layer-level1-512-crop160-09-0.718.h5",
+    path_b2="Xception-last-layer-level2-1024-crop160-14-0.653.h5",
+    path_b3="Xception-last-layer-level3-2048-crop160-14-0.562.h5",
+    score=0.562,
     use_softmax=False,
 )
-"""
+

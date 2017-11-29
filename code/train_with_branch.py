@@ -49,7 +49,7 @@ use_crop = utils.use_crop
 num_gpus = 8
 batch_size = 32*num_gpus
 num_epoch = 10
-initial_learning_rate = 0.0001
+initial_learning_rate = 0.001
 momentum = 0.65
 decay_value = 0.1
 alpha = 5e-5
@@ -107,7 +107,7 @@ with tf.device("/cpu:0"):
 
     # Load weights
 #    model.load_weights(model_dir+'%s-0.600.h5' % model_prefix)
-    model.load_weights(model_dir+'%s-01-0.566.h5' % model_prefix)
+    model.load_weights(model_dir+'%s-crop160-0.562.h5' % model_prefix)
 
 # make the model parallel
 parallel_model = multi_gpu_model(model, gpus=num_gpus)
