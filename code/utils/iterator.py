@@ -250,7 +250,7 @@ def center_crop(x, center_crop_size):
     halfw, halfh = center_crop_size[0]//2, center_crop_size[1]//2
     return x[centerw-halfw:centerw+halfw, centerh-halfh:centerh+halfh, :]
 
-def ten_crop(imgs, size, num_imgs):
+'''def ten_crop(imgs, size, num_imgs):
     crops = np.zeros((10*num_imgs, size[0], size[1], 3), dtype='float32')
     for i in range(num_imgs):
         flipped_X = np.fliplr(imgs[i])
@@ -267,5 +267,22 @@ def ten_crop(imgs, size, num_imgs):
         crops[i*10+9] = center_crop(flipped_X, (size[0], size[1]))
         # crops += crop
         # crops.append(crop)
+    # print(crops.shape)
+    return crops'''
+
+def ten_crop(img, size):
+    crops = np.zeros((10, size[0], size[1], 3), dtype='float32')
+    flipped_X = np.fliplr(img)
+    crops[0] = img[:size[0], :size[1], :]  # Upper Left
+    crops[1] = img[:size[0], img.shape[1] - size[1]:, :]  # Upper Right
+    crops[2] = img[img.shape[0] - size[0]:, :size[1], :]  # Lower Left
+    crops[3] = img[img.shape[0] - size[0]:, img.shape[1] - size[1]:, :]  # Lower Right
+    crops[4] = center_crop(img, (size[0], size[1]))
+
+    crops[5] = flipped_X[:size[0], :size[1], :]
+    crops[6] = flipped_X[:size[0], flipped_X.shape[1] - size[1]:, :]
+    crops[7] = flipped_X[flipped_X.shape[0] - size[0]:, :size[1], :]
+    crops[8] = flipped_X[flipped_X.shape[0] - size[0]:, flipped_X.shape[1] - size[1]:, :]
+    crops[9] = center_crop(flipped_X, (size[0], size[1]))
     # print(crops.shape)
     return crops

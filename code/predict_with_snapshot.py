@@ -31,8 +31,7 @@ def make_weighted_prediction(test_data, test_gen, num_products, models, weights)
             # process data
 
             num_imgs = len(product["imgs"])
-            batch_x = np.zeros((num_imgs, 180, 180, 3), dtype='float32')
-            # weighted_prediction = np.zeros((num_imgs, num_classes), dtype='float32')
+            batch_x = np.zeros((num_imgs, 10, 160, 160, 3), dtype='float32')
             for i in range(num_imgs):
                 bson_img = product["imgs"][i]["picture"]
                 # Load and preprocess the image.
@@ -41,19 +40,23 @@ def make_weighted_prediction(test_data, test_gen, num_products, models, weights)
                 x = test_gen.random_transform(x)
                 x = test_gen.standardize(x)
                 # Add the image to the batch.
-                batch_x[i] = x
-            batch_x = ten_crop(batch_x, (160, 160), num_imgs)
+                # batch_x[i] = x
+                batch_x[i] = ten_crop(x, (160, 160))
+            # batch_x = ten_crop(batch_x, (160, 160), num_imgs)
             # make predictions
 
-            weighted_prediction = np.zeros((10*num_imgs, num_classes), dtype='float32')
+            weighted_predictions = np.zeros((num_imgs, num_classes), dtype='float32')
             #for weight, name in zip(weights, model_names):
             for i in range(len(weights)):
-                batch_x = np.asarray(batch_x, dtype=np.float32)
-                prediction = models[i].predict(batch_x, batch_size=10*num_imgs)[2]
-                # print(np.asarray(prediction).shape)
-                weighted_prediction += weights[i] * prediction
+                for x in batch_x:
+                    # prediction = np.zeros((10, num_classes), dtype='float32')
+                    x = np.asarray(x, dtype=np.float32)
+                    prediction = models[i].predict(x, batch_size=10)[2]
+                    # print(np.asarray(prediction).shape)
+                    prediction = prediction.mean(axis=0)
+                    weighted_predictions += weights[i] * prediction
             # predict product idx by the average of each images
-            avg_pred = weighted_prediction.mean(axis=0)
+            avg_pred = weighted_predictions.mean(axis=0)
             cat_idx = np.argmax(avg_pred)
             # Use idx2cat[] to convert the predicted category index back to the original class label.
             pred_cat_id.append(idx2cat[cat_idx])
