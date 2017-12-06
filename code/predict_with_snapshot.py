@@ -6,7 +6,9 @@ import numpy as np
 import pandas as pd
 import bson
 
-from model import DARC1
+# from model.loss import darc1
+from model.xception import xception_3branch
+from utils.iterator import ten_crop
 
 from keras.preprocessing.image import load_img, img_to_array
 from keras.preprocessing.image import ImageDataGenerator
@@ -16,11 +18,11 @@ import utils.utils as u
 
 
 # Make weighted prediction for each product in test dataset
-def make_weighted_prediction(test_data, test_gen, num_products, model_names, weights):
-    model = []
-    for i in range(len(model_names)):
-        model.append(load_model(model_names[i]))
-        #model[i] = load_model(model_names[i], custom_objects={'DARC1': DARC1})
+def make_weighted_prediction(test_data, test_gen, num_products, models, weights):
+    # model = []
+    # for i in range(len(model_names)):
+        # model.append(load_model(model_names[i]))
+        # model[i] = load_model(model_names[i], custom_objects={'DARC1': DARC1})
     pred_cat_id = []
 
     with tqdm(total=num_products) as pbar:
@@ -30,6 +32,7 @@ def make_weighted_prediction(test_data, test_gen, num_products, model_names, wei
 
             num_imgs = len(product["imgs"])
             batch_x = np.zeros((num_imgs, 180, 180, 3), dtype='float32')
+            # weighted_prediction = np.zeros((num_imgs, num_classes), dtype='float32')
             for i in range(num_imgs):
                 bson_img = product["imgs"][i]["picture"]
                 # Load and preprocess the image.
@@ -39,20 +42,22 @@ def make_weighted_prediction(test_data, test_gen, num_products, model_names, wei
                 x = test_gen.standardize(x)
                 # Add the image to the batch.
                 batch_x[i] = x
-
+            batch_x = ten_crop(batch_x, (160, 160), num_imgs)
             # make predictions
 
-            weighted_prediction = np.zeros((num_imgs, num_classes), dtype='float32')
+            weighted_prediction = np.zeros((10*num_imgs, num_classes), dtype='float32')
             #for weight, name in zip(weights, model_names):
             for i in range(len(weights)):
-                #model.load_weights(name)
-                prediction = model[i].predict(batch_x, batch_size=num_imgs)
+                batch_x = np.asarray(batch_x, dtype=np.float32)
+                prediction = models[i].predict(batch_x, batch_size=10*num_imgs)[2]
+                # print(np.asarray(prediction).shape)
                 weighted_prediction += weights[i] * prediction
             # predict product idx by the average of each images
             avg_pred = weighted_prediction.mean(axis=0)
             cat_idx = np.argmax(avg_pred)
             # Use idx2cat[] to convert the predicted category index back to the original class label.
             pred_cat_id.append(idx2cat[cat_idx])
+            print(idx2cat[cat_idx])
             pbar.update()
 
     return pred_cat_id
@@ -90,17 +95,24 @@ test_dataflow = bson.decode_file_iter(test_bson_file)
 
 
 # model settings
-dense_num = 128
-model_prefix = 'Xception-pretrained-%d' % dense_num
-nb_snapshots = 3
-models_filenames = [model_dir+model_prefix+"-Best.h5"]
-models_filenames.extend([model_dir+model_prefix+"-%d.h5" % (i+1) for i in range(nb_snapshots)])
-#models_filenames = [model_dir+"Xception-nofc-pretrained-128.h5",model_dir+"Xception-nofc-pretrained-1282.h5",model_dir+"Xception-nofc-pretrained-1283.h5"]
+# dense_num = 128
+# model_prefix = 'Xception-pretrained-%d' % dense_num
+# nb_snapshots = 3
+# models_filenames = [model_dir+model_prefix+"-Best.h5"]
+# models_filenames.extend([model_dir+model_prefix+"-%d.h5" % (i+1) for i in range(nb_snapshots)])
+models_filenames = [model_dir+"Xception-combine-3branch-crop160-01-0.392.h5"]
 # model weights
-weights = [1. / len(models_filenames)] * len(models_filenames)
+weights = [1.0]#[1. / len(models_filenames)] * len(models_filenames)
+
+model = xception_3branch(512, 1024, 2048, False)
+model.load_weights(models_filenames[0])
+model.summary()
+models = []
+models.append(model)
+
 
 # make weighted predictions
-pred_cat_id = make_weighted_prediction(test_dataflow, test_datagen, num_test_products, models_filenames, weights)
+pred_cat_id = make_weighted_prediction(test_dataflow, test_datagen, num_test_products, models, weights)
 
 # generate submission
 pred_cat_id_df = pd.DataFrame(pred_cat_id, columns=["category_id"], dtype=int)
